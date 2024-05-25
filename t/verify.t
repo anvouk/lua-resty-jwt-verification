@@ -498,7 +498,27 @@ invalid jwt: signature does not match
 --- no_error_log
 [error]
 
-=== TEST 22: RS256 error, invalid public key used
+=== TEST 22: error, invalid params
+--- http_config eval: $::HttpConfig
+--- config
+    location = /t {
+        content_by_lua_block {
+            local jwt = require "resty.jwt-verification"
+            local decoded_token, err = jwt.verify()
+            ngx.say(decoded_token)
+            ngx.say(err)
+        }
+    }
+--- request
+    GET /t
+--- response_body
+nil
+invalid params: both jwt token and a secret are required
+--- error_code: 200
+--- no_error_log
+[error]
+
+=== TEST 23: RS256 error, invalid public key used
 --- http_config eval: $::HttpConfig
 --- config
     location = /t {

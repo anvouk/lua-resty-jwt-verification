@@ -109,9 +109,13 @@ end
 
 ---verify Verify jwt token and its claims.
 ---@param jwt_token string Raw jwt token.
----@param secret string Secret for symmetric signature validation.
+---@param secret string Secret for symmetric signature or public key in either PEM, DER or JWK format.
 ---@return table, string Parsed jwt if valid or error string.
 function _M.verify(jwt_token, secret)
+    if not jwt_token or not secret then
+        return nil, "invalid params: both jwt token and a secret are required"
+    end
+
     local jwt_sections = split_jwt_sections(jwt_token)
     if #jwt_sections ~= 3 then
         return nil, "invalid jwt: found '" .. #jwt_sections .. "' sections instead of expected 3"

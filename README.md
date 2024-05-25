@@ -6,7 +6,6 @@
 luarocks install lua-cjson
 luarocks install lua-resty-openssl
 luarocks install lua-resty-http
-luarocks install lua-resty-hmac-ffi
 ```
 
 Dev deps:

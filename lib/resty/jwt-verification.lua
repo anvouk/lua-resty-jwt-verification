@@ -1,6 +1,6 @@
 local cjson = require "cjson.safe"
 local openssl_cipher = require "resty.openssl.cipher"
-local hmac = require "resty.hmac"
+local hmac = require "resty.openssl.hmac"
 local http = require "resty.http"
 
 local _M = { _VERSION = "0.1.0" }
@@ -105,11 +105,11 @@ function _M.verify(jwt_token, secret)
 
     local hmac_instance
     if jwt_header.alg == "HS256" then
-        hmac_instance = hmac:new(secret, hmac.ALGOS.SHA256)
+        hmac_instance = hmac.new(secret, "sha256")
     elseif jwt_header.alg == "HS384" then
-        hmac_instance = hmac:new(secret, hmac.ALGOS.SHA384)
+        hmac_instance = hmac.new(secret, "sha384")
     elseif jwt_header.alg == "HS512" then
-        hmac_instance = hmac:new(secret, hmac.ALGOS.SHA512)
+        hmac_instance = hmac.new(secret, "sha512")
     else
         return nil, "invalid jwt: invalid on unimplemented alg " .. jwt_header.alg
     end

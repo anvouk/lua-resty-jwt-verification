@@ -1,7 +1,6 @@
 local cjson = require "cjson.safe"
 local pkey = require "resty.openssl.pkey"
 local hmac = require "resty.openssl.hmac"
-local http = require "resty.http"
 
 local _M = { _VERSION = "0.1.0" }
 
@@ -171,8 +170,10 @@ function _M.verify(jwt_token, secret)
             return nil, "invalid jwt: signature does not match"
         end
     elseif jwt_header.alg == "RS256" or jwt_header.alg == "RS384" or jwt_header.alg == "RS512" then
-        local is_valid, _ = rsa_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
-        if not is_valid then
+        local is_valid, err = rsa_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
+        if is_valid == nil then
+            return nil, "invalid jwt: " .. err
+        elseif not is_valid then
             return nil, "invalid jwt: signature does not match"
         end
     else

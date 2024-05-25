@@ -527,14 +527,18 @@ invalid params: both jwt token and a secret are required
             local token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NzI4NzV9.h5H6ASOTa6ws2ThZ-Hrb9ljRLLL2mSBEQgjQAm6a3E_7r2P_x4Pv-i6IzZYH5SJzw_kxqRVap4sUMMgFWZzwKyG1C4wZTdQbAFxyrAmPSX3vjrcFVlokho4TF0ymsHQm3YKRHqadtEVaxpMFvXGZmR8WdaZ4odRlS7N_9TfEphXmA-6fRC7EOx0Xdy40X4Wy84YKHquWfBeoUiO1QkUALFwkyMtkhNzqEHyxlry5UDv2TEoDs6xXszyZcPRPHfmbYPBjBIQbZzCElzfhPdDWlH68rwDvnv_wewmgNv85qRglWdIJx7RKXTI1C1TbLTbvgji3SuvAj9mlkmZZXI51cg"
             local decoded_token, err = jwt.verify(token, "invalid key")
             ngx.say(decoded_token)
-            ngx.say(err)
+            if string.match(err, "invalid jwt: failed initializing openssl with public key: ") then
+                ngx.say("invalid jwt: failed initializing openssl with public key")
+            else
+                ngx.say("unexpected error")
+            end
         }
     }
 --- request
     GET /t
 --- response_body
 nil
-invalid jwt: signature does not match
+invalid jwt: failed initializing openssl with public key
 --- error_code: 200
 --- no_error_log
 [error]

@@ -1,5 +1,5 @@
 local cjson = require "cjson.safe"
-local openssl_cipher = require "resty.openssl.cipher"
+local pkey = require "resty.openssl.pkey"
 local hmac = require "resty.openssl.hmac"
 local http = require "resty.http"
 
@@ -55,6 +55,59 @@ local function split_jwt_sections(jwt_token)
     return t
 end
 
+---hmac_sign Generate a signature with hmac for given message and secret.
+---@param message string Message to sign.
+---@param secret string Secret to use for signing message.
+---@param alg string Jwt HS family alg to use for sign.
+---@return string, string Signature or error string.
+local function hmac_sign(message, secret, alg)
+    local hmac_instance
+    if alg == "HS256" then
+        hmac_instance = hmac.new(secret, "sha256")
+    elseif alg == "HS384" then
+        hmac_instance = hmac.new(secret, "sha384")
+    elseif alg == "HS512" then
+        hmac_instance = hmac.new(secret, "sha512")
+    else
+        return nil, "invalid alg " .. alg
+    end
+    if not hmac_instance then
+        return nil, "failed initializing hmac instance"
+    end
+
+    return hmac_instance:final(message)
+end
+
+---rsa_verify Verify an existing signature for a message.
+---@param message string Message which signature belongs to.
+---@param signature string Message's signature.
+---@param public_key_str string Public x509 key used to verify the signature.
+---@param alg string Jwt RS family alg.
+---@return boolean, string Whether the signature is valid or error string.
+local function rsa_verify(message, signature, public_key_str, alg)
+    local pk, err = pkey.new(public_key_str, {
+        format = "PEM", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
+        type = "pu", -- choice of "pr" for privatekey, "pu" for public key and "*" for auto detect
+    })
+    if not pk then
+        return nil, "failed initializing openssl with public key: " .. err
+    end
+
+    local md_alg
+    if alg == "RS256" then
+        md_alg = "sha256"
+    elseif alg == "RS384" then
+        md_alg = "sha384"
+    elseif alg == "RS512" then
+        md_alg = "sha512"
+    else
+        return nil, "invalid jwt: invalid on unimplemented alg " .. alg
+    end
+
+    local ok, _ = pk:verify(signature, message, md_alg)
+    return ok
+end
+
 ---verify Verify jwt token and its claims.
 ---@param jwt_token string Raw jwt token.
 ---@param secret string Secret for symmetric signature validation.
@@ -103,27 +156,24 @@ function _M.verify(jwt_token, secret)
         return nil, "invalid jwt: failed decoding jwt signature from base64"
     end
 
-    local hmac_instance
-    if jwt_header.alg == "HS256" then
-        hmac_instance = hmac.new(secret, "sha256")
-    elseif jwt_header.alg == "HS384" then
-        hmac_instance = hmac.new(secret, "sha384")
-    elseif jwt_header.alg == "HS512" then
-        hmac_instance = hmac.new(secret, "sha512")
+    local jwt_portion_to_verify = string.format("%s.%s", jwt_sections[1], jwt_sections[2])
+
+    if jwt_header.alg == "HS256" or jwt_header.alg == "HS384" or jwt_header.alg == "HS512" then
+        local signature, err = hmac_sign(jwt_portion_to_verify, secret, jwt_header.alg)
+        if not signature then
+            return nil, "failed signing jwt for validation: " .. err
+        end
+
+        if signature ~= jwt_signature then
+            return nil, "invalid jwt: signature does not match"
+        end
+    elseif jwt_header.alg == "RS256" or jwt_header.alg == "RS384" or jwt_header.alg == "RS512" then
+        local is_valid, _ = rsa_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
+        if not is_valid then
+            return nil, "invalid jwt: signature does not match"
+        end
     else
-        return nil, "invalid jwt: invalid on unimplemented alg " .. jwt_header.alg
-    end
-    if not hmac_instance then
-        return nil, "failed initializing hmac instance"
-    end
-
-    local signature = hmac_instance:final(string.format("%s.%s", jwt_sections[1], jwt_sections[2]))
-    if not signature then
-        return nil, "failed computing hmac signature for jwt"
-    end
-
-    if signature ~= jwt_signature then
-        return nil, "invalid jwt: signature does not match"
+        return nil, "unsupported alg: " .. jwt_header.alg
     end
 
     return {

@@ -86,8 +86,7 @@ end
 ---@return boolean, string Whether the signature is valid or error string.
 local function rsa_verify(message, signature, public_key_str, alg)
     local pk, err = pkey.new(public_key_str, {
-        format = "PEM", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
-        type = "pu", -- choice of "pr" for privatekey, "pu" for public key and "*" for auto detect
+        format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
     })
     if not pk then
         return nil, "failed initializing openssl with public key: " .. err

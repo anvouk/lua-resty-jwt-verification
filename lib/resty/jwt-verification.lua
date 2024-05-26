@@ -77,10 +77,10 @@ local function hmac_sign(message, secret, alg)
     return hmac_instance:final(message)
 end
 
----rsa_verify Verify an existing signature for a message.
+---rsa_verify Verify an existing signature for a message with RSA.
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
----@param public_key_str string Public x509 key used to verify the signature.
+---@param public_key_str string Public key used to verify the signature.
 ---@param alg string Jwt RS family alg.
 ---@return boolean, string Whether the signature is valid or error string.
 local function rsa_verify(message, signature, public_key_str, alg)
@@ -99,11 +99,40 @@ local function rsa_verify(message, signature, public_key_str, alg)
     elseif alg == "RS512" then
         md_alg = "sha512"
     else
-        return nil, "invalid jwt: invalid on unimplemented alg " .. alg
+        return nil, "invalid jwt: invalid alg " .. alg
     end
 
-    local ok, _ = pk:verify(signature, message, md_alg)
-    return ok
+    local ok, err = pk:verify(signature, message, md_alg)
+    return ok, err
+end
+
+---ecdsa_verify Verify an existing signature for a message with ECDSA.
+---@param message string Message which signature belongs to.
+---@param signature string Message's signature.
+---@param public_key_str string Public key used to verify the signature.
+---@param alg string Jwt ES family alg.
+---@return boolean, string Whether the signature is valid or error string.
+local function ecdsa_verify(message, signature, public_key_str, alg)
+    local pk, err = pkey.new(public_key_str, {
+        format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
+    })
+    if not pk then
+        return nil, "failed initializing openssl with public key: " .. err
+    end
+
+    local md_alg
+    if alg == "ES256" then
+        md_alg = "sha256"
+    elseif alg == "ES384" then
+        md_alg = "sha384"
+    elseif alg == "ES512" then
+        md_alg = "sha512"
+    else
+        return nil, "invalid jwt: invalid alg " .. alg
+    end
+
+    local ok, err = pk:verify(signature, message, md_alg, nil, { ecdsa_use_raw = true })
+    return ok, err
 end
 
 ---verify Verify jwt token and its claims.
@@ -171,6 +200,13 @@ function _M.verify(jwt_token, secret)
         end
     elseif jwt_header.alg == "RS256" or jwt_header.alg == "RS384" or jwt_header.alg == "RS512" then
         local is_valid, err = rsa_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
+        if is_valid == nil then
+            return nil, "invalid jwt: " .. err
+        elseif not is_valid then
+            return nil, "invalid jwt: signature does not match"
+        end
+    elseif jwt_header.alg == "ES256" or jwt_header.alg == "ES384" or jwt_header.alg == "ES512" then
+        local is_valid, err = ecdsa_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
         if is_valid == nil then
             return nil, "invalid jwt: " .. err
         elseif not is_valid then

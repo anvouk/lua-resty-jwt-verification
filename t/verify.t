@@ -106,7 +106,6 @@ jwt validation failed: token has expired (exp claim)
             local token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NTUwMTV9.NuEhIzUuufJgPZ8CmCPnD4Vrw7EnTyWD8bGtYCwuDZ0"
             local decoded_token, err = jwt.verify(token, "superSecretKey")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -115,7 +114,6 @@ jwt validation failed: token has expired (exp claim)
     GET /t
 --- response_body
 HS256
-1716655015
 bar
 nil
 --- error_code: 200
@@ -152,7 +150,6 @@ invalid jwt: signature does not match
             local token = "eyJhbGciOiJIUzM4NCIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NTc4ODB9.B2l-OZwpiX3ftJbyYnki_NIUC4OUi_wfDMrNmOrze0SPngM0RBome3R_d14ZQnaN"
             local decoded_token, err = jwt.verify(token, "superSecretKey")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -161,7 +158,6 @@ invalid jwt: signature does not match
     GET /t
 --- response_body
 HS384
-1716657880
 bar
 nil
 --- error_code: 200
@@ -198,7 +194,6 @@ invalid jwt: signature does not match
             local token = "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NTc4OTJ9.6v1I0CHzem8vAMpJc77Dtu7P8J7UdUj99TrL1n_WeSfmpMhSArnxLEA-OLZBpzfw3L3u3IDGzlpziHhKuFDUgg"
             local decoded_token, err = jwt.verify(token, "superSecretKey")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -207,7 +202,6 @@ invalid jwt: signature does not match
     GET /t
 --- response_body
 HS512
-1716657892
 bar
 nil
 --- error_code: 200
@@ -339,7 +333,6 @@ invalid jwt: failed initializing openssl with public key
             local token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2Njg2Mzd9.H6PE-zLizMMqefx8DG4X5glVjyxR9UNT225Tq2yufHhu4k9K0IGttpykjMCG8Ck_4Qt2ezEWIgoiWhSn1rv_zwxe7Pv-B09fDs7h1hbASi5MZ0YVAmK9ID1RCKM_NTBEnPLot_iopKZRj2_J5F7lvXwJDZSzEAFJZdrgjKeBS4saDZAv7SIL9Nk75rdhgY-RgRwsjmTYSksj7eioRJJLHifrMnlQDbdrBD5_Qk5tD6VPcssO-vIVBUAYrYYTa7M7A_v47UH84zDtzNYBbk9NrDbyq5-tYs0lZwNhIX8t-0VAxjuCyrrGZvv8_O01pdi90kQmntFIbaiDiD-1WlGcGA"
             local decoded_token, err = jwt.verify(token, "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvXFhNyhFWuWtFSJqfOAw\np42lLIn9kB9oaciiKgNAYZ8SYw5t9Fo+Zh7IciVijn+cVS2/aoBNg2HhfdYgfpQ/\nsb6jwbRqFMln2GmG+X2aJ2wXMJ/QfxrPFdO9L36bAEwkubUTYXwgMSm1KqWRN8xX\n+oBu+dbyzw7iUbrmw0ybzXKZLJvetCvmt0reU5TvdwoczOWFBSKeYnzBrC6hISD8\n8TYDJ4tiw1EWVOupQGqgel0KjC7iwdIYi7PROn6/1MMnF48zlBbT/7/zORj84Z/y\nDnmxZu1MQ07kHqXDRYumSfCerg5Xw5vde7Tz8O0TWtaYV3HJXNa0VpN5OI3L4y7P\nhwIDAQAB\n-----END PUBLIC KEY-----")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -348,7 +341,6 @@ invalid jwt: failed initializing openssl with public key
     GET /t
 --- response_body
 RS256
-1716668637
 bar
 nil
 --- error_code: 200
@@ -364,7 +356,6 @@ nil
             local token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2Njg2Mzd9.H6PE-zLizMMqefx8DG4X5glVjyxR9UNT225Tq2yufHhu4k9K0IGttpykjMCG8Ck_4Qt2ezEWIgoiWhSn1rv_zwxe7Pv-B09fDs7h1hbASi5MZ0YVAmK9ID1RCKM_NTBEnPLot_iopKZRj2_J5F7lvXwJDZSzEAFJZdrgjKeBS4saDZAv7SIL9Nk75rdhgY-RgRwsjmTYSksj7eioRJJLHifrMnlQDbdrBD5_Qk5tD6VPcssO-vIVBUAYrYYTa7M7A_v47UH84zDtzNYBbk9NrDbyq5-tYs0lZwNhIX8t-0VAxjuCyrrGZvv8_O01pdi90kQmntFIbaiDiD-1WlGcGA"
             local decoded_token, err = jwt.verify(token, '{"kty":"RSA","e":"AQAB","kid":"90334551-d36e-4962-818e-5fd0bf79c6a8","n":"vXFhNyhFWuWtFSJqfOAwp42lLIn9kB9oaciiKgNAYZ8SYw5t9Fo-Zh7IciVijn-cVS2_aoBNg2HhfdYgfpQ_sb6jwbRqFMln2GmG-X2aJ2wXMJ_QfxrPFdO9L36bAEwkubUTYXwgMSm1KqWRN8xX-oBu-dbyzw7iUbrmw0ybzXKZLJvetCvmt0reU5TvdwoczOWFBSKeYnzBrC6hISD88TYDJ4tiw1EWVOupQGqgel0KjC7iwdIYi7PROn6_1MMnF48zlBbT_7_zORj84Z_yDnmxZu1MQ07kHqXDRYumSfCerg5Xw5vde7Tz8O0TWtaYV3HJXNa0VpN5OI3L4y7Phw"}')
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -373,7 +364,6 @@ nil
     GET /t
 --- response_body
 RS256
-1716668637
 bar
 nil
 --- error_code: 200
@@ -410,7 +400,6 @@ invalid jwt: signature does not match
             local token = "eyJhbGciOiJSUzM4NCIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NzI5Nzl9.rb0aeKNNFlpuLeVAJb1jKKlG22uMm9tTSOOFr_pn3XmgqEP1ebA8pPtokIhXaSRM5zRR_7SKh9-TicNhQ3k4TPMV-BeO91-hwcFcsesX3j7YtID8dt0cf5clNL9S4oIfk8MviM02tBWR60Yg-XQW2P7tvDYX3hCG0reYfZs7FIwLzdnvxnhNpgXEbx55WDVkek7iACZ_6CkW6Td3R0mx-KusodMNOojDJbz1_9WlEf1-p0dsHFkNmk8GrL_GcC0Yz9kocrWMUPYZ3dqhULOIapYxNOmxIWKmLjkuIH3yEwKLW-k-JwjBHwvolAD5qIa4OPDj8DsSpPk0-t50EkMe7w"
             local decoded_token, err = jwt.verify(token, "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvXFhNyhFWuWtFSJqfOAw\np42lLIn9kB9oaciiKgNAYZ8SYw5t9Fo+Zh7IciVijn+cVS2/aoBNg2HhfdYgfpQ/\nsb6jwbRqFMln2GmG+X2aJ2wXMJ/QfxrPFdO9L36bAEwkubUTYXwgMSm1KqWRN8xX\n+oBu+dbyzw7iUbrmw0ybzXKZLJvetCvmt0reU5TvdwoczOWFBSKeYnzBrC6hISD8\n8TYDJ4tiw1EWVOupQGqgel0KjC7iwdIYi7PROn6/1MMnF48zlBbT/7/zORj84Z/y\nDnmxZu1MQ07kHqXDRYumSfCerg5Xw5vde7Tz8O0TWtaYV3HJXNa0VpN5OI3L4y7P\nhwIDAQAB\n-----END PUBLIC KEY-----")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -419,7 +408,6 @@ invalid jwt: signature does not match
     GET /t
 --- response_body
 RS384
-1716672979
 bar
 nil
 --- error_code: 200
@@ -435,7 +423,6 @@ nil
             local token = "eyJhbGciOiJSUzM4NCIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NzI5Nzl9.rb0aeKNNFlpuLeVAJb1jKKlG22uMm9tTSOOFr_pn3XmgqEP1ebA8pPtokIhXaSRM5zRR_7SKh9-TicNhQ3k4TPMV-BeO91-hwcFcsesX3j7YtID8dt0cf5clNL9S4oIfk8MviM02tBWR60Yg-XQW2P7tvDYX3hCG0reYfZs7FIwLzdnvxnhNpgXEbx55WDVkek7iACZ_6CkW6Td3R0mx-KusodMNOojDJbz1_9WlEf1-p0dsHFkNmk8GrL_GcC0Yz9kocrWMUPYZ3dqhULOIapYxNOmxIWKmLjkuIH3yEwKLW-k-JwjBHwvolAD5qIa4OPDj8DsSpPk0-t50EkMe7w"
             local decoded_token, err = jwt.verify(token, '{"kty":"RSA","e":"AQAB","kid":"90334551-d36e-4962-818e-5fd0bf79c6a8","n":"vXFhNyhFWuWtFSJqfOAwp42lLIn9kB9oaciiKgNAYZ8SYw5t9Fo-Zh7IciVijn-cVS2_aoBNg2HhfdYgfpQ_sb6jwbRqFMln2GmG-X2aJ2wXMJ_QfxrPFdO9L36bAEwkubUTYXwgMSm1KqWRN8xX-oBu-dbyzw7iUbrmw0ybzXKZLJvetCvmt0reU5TvdwoczOWFBSKeYnzBrC6hISD88TYDJ4tiw1EWVOupQGqgel0KjC7iwdIYi7PROn6_1MMnF48zlBbT_7_zORj84Z_yDnmxZu1MQ07kHqXDRYumSfCerg5Xw5vde7Tz8O0TWtaYV3HJXNa0VpN5OI3L4y7Phw"}')
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -444,7 +431,6 @@ nil
     GET /t
 --- response_body
 RS384
-1716672979
 bar
 nil
 --- error_code: 200
@@ -481,7 +467,6 @@ invalid jwt: signature does not match
             local token = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NzMwODF9.CSR4yMVAcmWmn2rIoeqaM4cEZy9HgY3Y_nMARVNJFG0L2Erd45Mf26AWoo6jpg3-UOqeqVbbKAvFNrpxxJjVXHbvuH8VfS8USDm_enBsJ3WYBm2m-c98jLTVwF66Up7L5YlRL6WM6vAoeZM1PUeLcXu-5asACA-hjhE8RRuQbypapcZrO5PVpwKZ1CSPsEmJ0QXfK8laKf__Mfwak-COcqpmOeU4Hd8UTJi0q21eN7z4k_xVz34gwvOYQZITwcMuBcF1HZRM5yXTMRYA7WKMKW0zKVQEBuz4v7a5XYIwD7RhbgRaSN4RmFUNQgqaNSLmQ4pXeNoxw4IvMHMnPCJl-Q"
             local decoded_token, err = jwt.verify(token, "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvXFhNyhFWuWtFSJqfOAw\np42lLIn9kB9oaciiKgNAYZ8SYw5t9Fo+Zh7IciVijn+cVS2/aoBNg2HhfdYgfpQ/\nsb6jwbRqFMln2GmG+X2aJ2wXMJ/QfxrPFdO9L36bAEwkubUTYXwgMSm1KqWRN8xX\n+oBu+dbyzw7iUbrmw0ybzXKZLJvetCvmt0reU5TvdwoczOWFBSKeYnzBrC6hISD8\n8TYDJ4tiw1EWVOupQGqgel0KjC7iwdIYi7PROn6/1MMnF48zlBbT/7/zORj84Z/y\nDnmxZu1MQ07kHqXDRYumSfCerg5Xw5vde7Tz8O0TWtaYV3HJXNa0VpN5OI3L4y7P\nhwIDAQAB\n-----END PUBLIC KEY-----")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -490,7 +475,6 @@ invalid jwt: signature does not match
     GET /t
 --- response_body
 RS512
-1716673081
 bar
 nil
 --- error_code: 200
@@ -506,7 +490,6 @@ nil
             local token = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NzMwODF9.CSR4yMVAcmWmn2rIoeqaM4cEZy9HgY3Y_nMARVNJFG0L2Erd45Mf26AWoo6jpg3-UOqeqVbbKAvFNrpxxJjVXHbvuH8VfS8USDm_enBsJ3WYBm2m-c98jLTVwF66Up7L5YlRL6WM6vAoeZM1PUeLcXu-5asACA-hjhE8RRuQbypapcZrO5PVpwKZ1CSPsEmJ0QXfK8laKf__Mfwak-COcqpmOeU4Hd8UTJi0q21eN7z4k_xVz34gwvOYQZITwcMuBcF1HZRM5yXTMRYA7WKMKW0zKVQEBuz4v7a5XYIwD7RhbgRaSN4RmFUNQgqaNSLmQ4pXeNoxw4IvMHMnPCJl-Q"
             local decoded_token, err = jwt.verify(token, '{"kty":"RSA","e":"AQAB","kid":"90334551-d36e-4962-818e-5fd0bf79c6a8","n":"vXFhNyhFWuWtFSJqfOAwp42lLIn9kB9oaciiKgNAYZ8SYw5t9Fo-Zh7IciVijn-cVS2_aoBNg2HhfdYgfpQ_sb6jwbRqFMln2GmG-X2aJ2wXMJ_QfxrPFdO9L36bAEwkubUTYXwgMSm1KqWRN8xX-oBu-dbyzw7iUbrmw0ybzXKZLJvetCvmt0reU5TvdwoczOWFBSKeYnzBrC6hISD88TYDJ4tiw1EWVOupQGqgel0KjC7iwdIYi7PROn6_1MMnF48zlBbT_7_zORj84Z_yDnmxZu1MQ07kHqXDRYumSfCerg5Xw5vde7Tz8O0TWtaYV3HJXNa0VpN5OI3L4y7Phw"}')
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -515,7 +498,6 @@ nil
     GET /t
 --- response_body
 RS512
-1716673081
 bar
 nil
 --- error_code: 200
@@ -552,7 +534,6 @@ invalid jwt: signature does not match
             local token = "eyJhbGciOiJFUzI1NiJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NDkwNzV9.JCCaBLnjxFzfigpLEocicSHbr13Dv6NS0FMVae0hhaHpIwqfvijUwHB5r51DQpnOpPEpE9Y3BOW2Gi_Hu0QAUA"
             local decoded_token, err = jwt.verify(token, "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5tLj4FVQLT0i2k2++Ekh+YhojZLz\n0cBsUH1T89qUbusGeS6xRKdAcDBqd23IsdxFF5tnGubORP4YvTNq76UelA==\n-----END PUBLIC KEY-----")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -561,7 +542,6 @@ invalid jwt: signature does not match
     GET /t
 --- response_body
 ES256
-1716749075
 bar
 nil
 --- error_code: 200
@@ -577,7 +557,6 @@ nil
             local token = "eyJhbGciOiJFUzI1NiJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NDkwNzV9.JCCaBLnjxFzfigpLEocicSHbr13Dv6NS0FMVae0hhaHpIwqfvijUwHB5r51DQpnOpPEpE9Y3BOW2Gi_Hu0QAUA"
             local decoded_token, err = jwt.verify(token, '{"kty":"EC","x":"5tLj4FVQLT0i2k2--Ekh-YhojZLz0cBsUH1T89qUbus","y":"BnkusUSnQHAwandtyLHcRRebZxrmzkT-GL0zau-lHpQ","crv":"P-256"}')
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -586,7 +565,6 @@ nil
     GET /t
 --- response_body
 ES256
-1716749075
 bar
 nil
 --- error_code: 200
@@ -623,7 +601,6 @@ invalid jwt: signature does not match
             local token = "eyJhbGciOiJFUzM4NCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NDk3NDZ9.PO7g8wmtKMsYeDTC7k_KgQxi6dKhmF0rU9iFia3c5KR2qciZCvfLhDrVYMm-_WNMyxDP5PdBydwO2fPWSq2q3Wh0zuXWDBGh6DV434u_xxC1DfCDQeuwTG6xJ-cVecjl"
             local decoded_token, err = jwt.verify(token, "-----BEGIN PUBLIC KEY-----\nMHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEeDLssIoGJWSpYzuIHlsMDMNHYTplFG+R\nxPqH/StkaKogfxdO2TwtA3o1bTjfKtwDO0B0kXvhhKCqoIEougojLAvw1M+P2/A1\n66kLwlRap8y2QufiOF50y7oLRPYCkzR7\n-----END PUBLIC KEY-----")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -632,7 +609,6 @@ invalid jwt: signature does not match
     GET /t
 --- response_body
 ES384
-1716749746
 bar
 nil
 --- error_code: 200
@@ -648,7 +624,6 @@ nil
             local token = "eyJhbGciOiJFUzM4NCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NDk3NDZ9.PO7g8wmtKMsYeDTC7k_KgQxi6dKhmF0rU9iFia3c5KR2qciZCvfLhDrVYMm-_WNMyxDP5PdBydwO2fPWSq2q3Wh0zuXWDBGh6DV434u_xxC1DfCDQeuwTG6xJ-cVecjl"
             local decoded_token, err = jwt.verify(token, '{"kty":"EC","x":"eDLssIoGJWSpYzuIHlsMDMNHYTplFG-RxPqH_StkaKogfxdO2TwtA3o1bTjfKtwD","y":"O0B0kXvhhKCqoIEougojLAvw1M-P2_A166kLwlRap8y2QufiOF50y7oLRPYCkzR7","crv":"P-384"}')
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -657,7 +632,6 @@ nil
     GET /t
 --- response_body
 ES384
-1716749746
 bar
 nil
 --- error_code: 200
@@ -694,7 +668,6 @@ invalid jwt: signature does not match
             local token = "eyJhbGciOiJFUzUxMiJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NTAwMTh9.ATocuer0f8LHzW9BhHyvVqfBpMXyyiVNpvNLJdRwG465B8lFHRhWkAPg3SufQ12YBGhxtBZtbMCqtoI_1N6GDxQGAWvjg-M95GfAKLFHmN6WVVQAXolz7FaaV-e0cJkU_pg3ZY7IVb86X-EOAYRYZCAnWDcRUxXoDxtd_v1LDoLTsrPq"
             local decoded_token, err = jwt.verify(token, "-----BEGIN PUBLIC KEY-----\nMIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQA5JkQNYNYE4R+jwvyfS4lVFm5RFxy\n1agPFoQyQg6bF15hBtDxeifR6Y887Z0C22/MRoJMITp+zcnXlZ0ChfMnbdEB9LeF\np0cv7btxGr09x9wvOqqHPC9I20bIfeqOrvmeBkqCVJ+0Rib2tRpqbgoYA1b783CM\nCGSJpnynxvcNsmIE34k=\n-----END PUBLIC KEY-----")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -703,7 +676,6 @@ invalid jwt: signature does not match
     GET /t
 --- response_body
 ES512
-1716750018
 bar
 nil
 --- error_code: 200
@@ -719,7 +691,6 @@ nil
             local token = "eyJhbGciOiJFUzUxMiJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NTAwMTh9.ATocuer0f8LHzW9BhHyvVqfBpMXyyiVNpvNLJdRwG465B8lFHRhWkAPg3SufQ12YBGhxtBZtbMCqtoI_1N6GDxQGAWvjg-M95GfAKLFHmN6WVVQAXolz7FaaV-e0cJkU_pg3ZY7IVb86X-EOAYRYZCAnWDcRUxXoDxtd_v1LDoLTsrPq"
             local decoded_token, err = jwt.verify(token, '{"kty":"EC","x":"AOSZEDWDWBOEfo8L8n0uJVRZuURcctWoDxaEMkIOmxdeYQbQ8Xon0emPPO2dAttvzEaCTCE6fs3J15WdAoXzJ23R","y":"AfS3hadHL-27cRq9PcfcLzqqhzwvSNtGyH3qjq75ngZKglSftEYm9rUaam4KGANW-_NwjAhkiaZ8p8b3DbJiBN-J","crv":"P-521"}')
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -728,7 +699,6 @@ nil
     GET /t
 --- response_body
 ES512
-1716750018
 bar
 nil
 --- error_code: 200
@@ -765,7 +735,6 @@ invalid jwt: signature does not match
             local token = "eyJhbGciOiJQUzI1NiJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NTE0MTh9.kXc1d1rN3RJnGcnbUSjSfh62dDihewE7Ev3CujkcSB3t3j1074aa2Ud7rmQgD5vQTLFzvDhpWaInY_DMrBYh2XtwlaTCuHkXN7OVyWzctAvDq_x5LQov5ktHvjhIWPqp1V6ty7ZRA3VIh7bmG7bFHZYwot9diCO04vPQ2u-ThpIdB_BaQdf4z54-UtyXpmVb4QVg7y24FOXXskVvybwtwbt3pmXI1RLCEDiDjIbtPeGXeHYT_Kepq-F0r6pemxOZ_iTKkzfiYMewsQwwtYB3-t9wtk8vnPqIFOZFnDEMm_Y2txMYyh_A2sBkpEHCGpzjIBSvTOONwOrUmSokl6qaSg"
             local decoded_token, err = jwt.verify(token, "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvXFhNyhFWuWtFSJqfOAw\np42lLIn9kB9oaciiKgNAYZ8SYw5t9Fo+Zh7IciVijn+cVS2/aoBNg2HhfdYgfpQ/\nsb6jwbRqFMln2GmG+X2aJ2wXMJ/QfxrPFdO9L36bAEwkubUTYXwgMSm1KqWRN8xX\n+oBu+dbyzw7iUbrmw0ybzXKZLJvetCvmt0reU5TvdwoczOWFBSKeYnzBrC6hISD8\n8TYDJ4tiw1EWVOupQGqgel0KjC7iwdIYi7PROn6/1MMnF48zlBbT/7/zORj84Z/y\nDnmxZu1MQ07kHqXDRYumSfCerg5Xw5vde7Tz8O0TWtaYV3HJXNa0VpN5OI3L4y7P\nhwIDAQAB\n-----END PUBLIC KEY-----")
             ngx.say(decoded_token.header.alg)
-            ngx.say(decoded_token.payload.iat)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
         }
@@ -774,7 +743,6 @@ invalid jwt: signature does not match
     GET /t
 --- response_body
 PS256
-1716751418
 bar
 nil
 --- error_code: 200

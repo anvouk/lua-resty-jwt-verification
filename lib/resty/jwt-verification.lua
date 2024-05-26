@@ -4,6 +4,21 @@ local hmac = require "resty.openssl.hmac"
 
 local _M = { _VERSION = "0.1.0" }
 
+local md_alg_table = {
+    ["HS256"] = "sha256",
+    ["RS256"] = "sha256",
+    ["ES256"] = "sha256",
+    ["PS256"] = "sha256",
+    ["HS384"] = "sha384",
+    ["RS384"] = "sha384",
+    ["ES384"] = "sha384",
+    ["PS384"] = "sha384",
+    ["HS512"] = "sha512",
+    ["RS512"] = "sha512",
+    ["ES512"] = "sha512",
+    ["PS512"] = "sha512",
+}
+
 ---decode_base64_segment_to_string Decode an encoded string in base64.
 ---@param base64_str string base64 encoded string.
 ---@return string, string Parsed string or error string.
@@ -15,7 +30,7 @@ local function decode_base64_segment_to_string(base64_str)
         base64_str = base64_str .. string.rep("=", 4 - reminder)
     end
     local decoded_header = ngx.decode_base64(base64_str)
-    if not decoded_header then
+    if decoded_header == nil then
         return nil, "failed decoding base64 string"
     end
     return decoded_header
@@ -26,7 +41,7 @@ end
 ---@return table, string Parsed content or error string.
 local function decode_base64_segment_to_table(base64_str)
     local decoded_string, err = decode_base64_segment_to_string(base64_str)
-    if not decoded_string then
+    if decoded_string == nil then
         return nil, err
     end
     return cjson.decode(decoded_string)
@@ -37,7 +52,7 @@ end
 ---@return table, string Jwt header content as lua table or error string.
 function _M.decode_header_unsafe(jwt_token)
     local dotpos = string.find(jwt_token, ".", 0, true)
-    if not dotpos then
+    if dotpos == nil then
         return nil, "invalid jwt format: missing header"
     end
     return decode_base64_segment_to_table(string.sub(jwt_token, 1, dotpos - 1))
@@ -61,20 +76,11 @@ end
 ---hmac_sign Generate a signature with hmac for given message and secret.
 ---@param message string Message to sign.
 ---@param secret string Secret to use for signing message.
----@param alg string Jwt HS family alg to use for sign.
+---@param md_alg string Either sha256, sha384 or sha512.
 ---@return string, string Signature or error string.
-local function hmac_sign(message, secret, alg)
-    local hmac_instance
-    if alg == "HS256" then
-        hmac_instance = hmac.new(secret, "sha256")
-    elseif alg == "HS384" then
-        hmac_instance = hmac.new(secret, "sha384")
-    elseif alg == "HS512" then
-        hmac_instance = hmac.new(secret, "sha512")
-    else
-        return nil, "invalid alg " .. alg
-    end
-    if not hmac_instance then
+local function hmac_sign(message, secret, md_alg)
+    local hmac_instance = hmac.new(secret, md_alg)
+    if hmac_instance == nil then
         return nil, "failed initializing hmac instance"
     end
 
@@ -85,58 +91,34 @@ end
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
----@param alg string Jwt RS family alg.
+---@param md_alg string Either sha256, sha384 or sha512.
 ---@return boolean, string Whether the signature is valid or error string.
-local function rsa_verify(message, signature, public_key_str, alg)
+local function rsa_verify(message, signature, public_key_str, md_alg)
     local pk, err = pkey.new(public_key_str, {
         format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
     })
-    if not pk then
+    if pk == nil then
         return nil, "failed initializing openssl with public key: " .. err
     end
 
-    local md_alg
-    if alg == "RS256" then
-        md_alg = "sha256"
-    elseif alg == "RS384" then
-        md_alg = "sha384"
-    elseif alg == "RS512" then
-        md_alg = "sha512"
-    else
-        return nil, "invalid alg " .. alg
-    end
-
-    local ok, err = pk:verify(signature, message, md_alg)
-    return ok, err
+    return pk:verify(signature, message, md_alg)
 end
 
 ---ecdsa_verify Verify an existing signature for a message with ECDSA.
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
----@param alg string Jwt ES family alg.
+---@param md_alg string Either sha256, sha384 or sha512.
 ---@return boolean, string Whether the signature is valid or error string.
-local function ecdsa_verify(message, signature, public_key_str, alg)
+local function ecdsa_verify(message, signature, public_key_str, md_alg)
     local pk, err = pkey.new(public_key_str, {
         format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
     })
-    if not pk then
+    if pk == nil then
         return nil, "failed initializing openssl with public key: " .. err
     end
 
-    local md_alg
-    if alg == "ES256" then
-        md_alg = "sha256"
-    elseif alg == "ES384" then
-        md_alg = "sha384"
-    elseif alg == "ES512" then
-        md_alg = "sha512"
-    else
-        return nil, "invalid alg " .. alg
-    end
-
-    local ok, err = pk:verify(signature, message, md_alg, nil, { ecdsa_use_raw = true })
-    return ok, err
+    return pk:verify(signature, message, md_alg, nil, { ecdsa_use_raw = true })
 end
 
 ---rsa_pss_verify Verify an existing signature for a message with RSA-PSS.
@@ -149,23 +131,11 @@ local function rsa_pss_verify(message, signature, public_key_str, alg)
     local pk, err = pkey.new(public_key_str, {
         format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
     })
-    if not pk then
+    if pk == nil then
         return nil, "failed initializing openssl with public key: " .. err
     end
 
-    local md_alg
-    if alg == "PS256" then
-        md_alg = "sha256"
-    elseif alg == "PS384" then
-        md_alg = "sha384"
-    elseif alg == "PS512" then
-        md_alg = "sha512"
-    else
-        return nil, "invalid alg " .. alg
-    end
-
-    local ok, err = pk:verify(signature, message, md_alg, pk.PADDINGS.RSA_PKCS1_PSS_PADDING)
-    return ok, err
+    return pk:verify(signature, message, alg, pkey.PADDINGS.RSA_PKCS1_PSS_PADDING)
 end
 
 ---verify Verify jwt token and its claims.
@@ -183,15 +153,15 @@ function _M.verify(jwt_token, secret)
     end
 
     local jwt_header, err = decode_base64_segment_to_table(jwt_sections[1])
-    if not jwt_header then
+    if jwt_header == nil then
         return nil, "invalid jwt: " .. err
     end
-    if not jwt_header.alg or type(jwt_header.alg) ~= "string" then
+    if jwt_header.alg == nil or type(jwt_header.alg) ~= "string" then
         return nil, "invalid jwt: missing required string header claim 'alg'"
     end
 
     local jwt_payload, err = decode_base64_segment_to_table(jwt_sections[2])
-    if not jwt_payload then
+    if jwt_payload == nil then
         return nil, "invalid jwt: " .. err
     end
 
@@ -216,37 +186,38 @@ function _M.verify(jwt_token, secret)
     end
 
     local jwt_signature = decode_base64_segment_to_string(jwt_sections[3])
-    if not jwt_signature then
+    if jwt_signature == nil then
         return nil, "invalid jwt: failed decoding jwt signature from base64"
     end
 
     local jwt_portion_to_verify = string.format("%s.%s", jwt_sections[1], jwt_sections[2])
 
     if jwt_header.alg == "HS256" or jwt_header.alg == "HS384" or jwt_header.alg == "HS512" then
-        local signature, err = hmac_sign(jwt_portion_to_verify, secret, jwt_header.alg)
-        if not signature then
+        local signature, err = hmac_sign(jwt_portion_to_verify, secret, md_alg_table[jwt_header.alg])
+        if signature == nil then
             return nil, "failed signing jwt for validation: " .. err
         end
 
+        -- FIXME: find a way to do this comparison in constant time
         if signature ~= jwt_signature then
             return nil, "invalid jwt: signature does not match"
         end
     elseif jwt_header.alg == "RS256" or jwt_header.alg == "RS384" or jwt_header.alg == "RS512" then
-        local is_valid, err = rsa_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
+        local is_valid, err = rsa_verify(jwt_portion_to_verify, jwt_signature, secret, md_alg_table[jwt_header.alg])
         if is_valid == nil then
             return nil, "invalid jwt: " .. err
         elseif not is_valid then
             return nil, "invalid jwt: signature does not match"
         end
     elseif jwt_header.alg == "ES256" or jwt_header.alg == "ES384" or jwt_header.alg == "ES512" then
-        local is_valid, err = ecdsa_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
+        local is_valid, err = ecdsa_verify(jwt_portion_to_verify, jwt_signature, secret, md_alg_table[jwt_header.alg])
         if is_valid == nil then
             return nil, "invalid jwt: " .. err
         elseif not is_valid then
             return nil, "invalid jwt: signature does not match"
         end
     elseif jwt_header.alg == "PS256" or jwt_header.alg == "PS384" or jwt_header.alg == "PS512" then
-        local is_valid, err = rsa_pss_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
+        local is_valid, err = rsa_pss_verify(jwt_portion_to_verify, jwt_signature, secret, md_alg_table[jwt_header.alg])
         if is_valid == nil then
             return nil, "invalid jwt: " .. err
         elseif not is_valid then

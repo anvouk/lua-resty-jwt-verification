@@ -21,13 +21,13 @@
 | RS256 | :white_check_mark: |
 | RS384 | :white_check_mark: |
 | RS512 | :white_check_mark: |
-| ES256 |        :x:         |
-| ES384 |        :x:         |
-| ES512 |        :x:         |
-| PS256 |        :x:         |
-| PS384 |        :x:         |
-| PS512 |        :x:         |
-| none  |        :x:         |
+| ES256 | :white_check_mark: |
+| ES384 | :white_check_mark: |
+| ES512 | :white_check_mark: |
+| PS256 | :white_check_mark: |
+| PS384 | :white_check_mark: |
+| PS512 | :white_check_mark: |
+| none  | :white_check_mark: |
 
 ### JWE Decryption
 

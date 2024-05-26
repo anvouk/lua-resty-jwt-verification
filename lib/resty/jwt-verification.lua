@@ -51,6 +51,10 @@ local function split_jwt_sections(jwt_token)
     for substr in string.gmatch(jwt_token, "([^.]+)") do
         table.insert(t, substr)
     end
+    -- it's possible the signature part won't be there (e.g. none alg).
+    if #t == 2 then
+        table.insert(t, "")
+    end
     return t
 end
 
@@ -99,7 +103,7 @@ local function rsa_verify(message, signature, public_key_str, alg)
     elseif alg == "RS512" then
         md_alg = "sha512"
     else
-        return nil, "invalid jwt: invalid alg " .. alg
+        return nil, "invalid alg " .. alg
     end
 
     local ok, err = pk:verify(signature, message, md_alg)
@@ -128,10 +132,39 @@ local function ecdsa_verify(message, signature, public_key_str, alg)
     elseif alg == "ES512" then
         md_alg = "sha512"
     else
-        return nil, "invalid jwt: invalid alg " .. alg
+        return nil, "invalid alg " .. alg
     end
 
     local ok, err = pk:verify(signature, message, md_alg, nil, { ecdsa_use_raw = true })
+    return ok, err
+end
+
+---rsa_pss_verify Verify an existing signature for a message with RSA-PSS.
+---@param message string Message which signature belongs to.
+---@param signature string Message's signature.
+---@param public_key_str string Public key used to verify the signature.
+---@param alg string Jwt PS family alg.
+---@return boolean, string Whether the signature is valid or error string.
+local function rsa_pss_verify(message, signature, public_key_str, alg)
+    local pk, err = pkey.new(public_key_str, {
+        format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
+    })
+    if not pk then
+        return nil, "failed initializing openssl with public key: " .. err
+    end
+
+    local md_alg
+    if alg == "PS256" then
+        md_alg = "sha256"
+    elseif alg == "PS384" then
+        md_alg = "sha384"
+    elseif alg == "PS512" then
+        md_alg = "sha512"
+    else
+        return nil, "invalid alg " .. alg
+    end
+
+    local ok, err = pk:verify(signature, message, md_alg, pk.PADDINGS.RSA_PKCS1_PSS_PADDING)
     return ok, err
 end
 
@@ -140,7 +173,7 @@ end
 ---@param secret string Secret for symmetric signature or public key in either PEM, DER or JWK format.
 ---@return table, string Parsed jwt if valid or error string.
 function _M.verify(jwt_token, secret)
-    if not jwt_token or not secret then
+    if jwt_token == nil or secret == nil then
         return nil, "invalid params: both jwt token and a secret are required"
     end
 
@@ -212,8 +245,17 @@ function _M.verify(jwt_token, secret)
         elseif not is_valid then
             return nil, "invalid jwt: signature does not match"
         end
+    elseif jwt_header.alg == "PS256" or jwt_header.alg == "PS384" or jwt_header.alg == "PS512" then
+        local is_valid, err = rsa_pss_verify(jwt_portion_to_verify, jwt_signature, secret, jwt_header.alg)
+        if is_valid == nil then
+            return nil, "invalid jwt: " .. err
+        elseif not is_valid then
+            return nil, "invalid jwt: signature does not match"
+        end
+    elseif jwt_header.alg == "none" then
+        return nil, "unsafe jwt with none alg will never be verifiable"
     else
-        return nil, "unsupported alg: " .. jwt_header.alg
+        return nil, "unknown jwt alg: " .. jwt_header.alg
     end
 
     return {

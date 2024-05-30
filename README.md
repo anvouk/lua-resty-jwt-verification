@@ -27,7 +27,7 @@
 | PS256 | :white_check_mark: |
 | PS384 | :white_check_mark: |
 | PS512 | :white_check_mark: |
-| none  | :white_check_mark: |
+| none  |        :x:         |
 
 ### JWE Decryption
 

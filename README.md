@@ -1,15 +1,15 @@
 # JWT verification for openresty
 
-## Supported features
-
 ## RFCs used as reference
 
-- [RFC 7515](https://datatracker.ietf.org/doc/html/rfc7515)
-- [RFC 7516](https://datatracker.ietf.org/doc/html/rfc7516)
-- [RFC 7517](https://datatracker.ietf.org/doc/html/rfc7517)
-- [RFC 7518](https://datatracker.ietf.org/doc/html/rfc7518)
-- [RFC 7519](https://datatracker.ietf.org/doc/html/rfc7519)
-- [RFC 7520](https://datatracker.ietf.org/doc/html/rfc7520)
+- [RFC 7515](https://datatracker.ietf.org/doc/html/rfc7515) JSON Web Signature (JWS)
+- [RFC 7516](https://datatracker.ietf.org/doc/html/rfc7516) JSON Web Encryption (JWE)
+- [RFC 7517](https://datatracker.ietf.org/doc/html/rfc7517) JSON Web Key (JWK)
+- [RFC 7518](https://datatracker.ietf.org/doc/html/rfc7518) JSON Web Algorithms (JWA)
+- [RFC 7519](https://datatracker.ietf.org/doc/html/rfc7519) JSON Web Token (JWT)
+- [RFC 7520](https://datatracker.ietf.org/doc/html/rfc7520) Examples of Protecting Content Using JSON Object Signing and Encryption (JOSE)
+
+## Supported features
 
 ### JWS Verify
 

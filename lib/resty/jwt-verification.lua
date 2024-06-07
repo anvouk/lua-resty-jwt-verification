@@ -1,8 +1,10 @@
-local cjson = require "cjson.safe"
-local pkey = require "resty.openssl.pkey"
-local hmac = require "resty.openssl.hmac"
-local isempty = require "table.isempty"
-local isarray = require "table.isarray"
+local b64 = require("ngx.base64")
+local cjson = require("cjson.safe")
+local pkey = require("resty.openssl.pkey")
+local hmac = require("resty.openssl.hmac")
+local cipher = require("resty.openssl.cipher")
+local isempty = require("table.isempty")
+local isarray = require("table.isarray")
 
 local _M = { _VERSION = "0.1.0" }
 
@@ -19,6 +21,39 @@ local md_alg_table = {
     ["RS512"] = "sha512",
     ["ES512"] = "sha512",
     ["PS512"] = "sha512",
+}
+
+local decrypt_alg_table = {
+    ["A128KW"] = {
+        aes = "aes128-wrap",
+        enc_key_len = 16,
+    },
+    ["A192KW"] = {
+        aes = "aes192-wrap",
+        enc_key_len = 24,
+    },
+    ["A256KW"] = {
+        aes = "aes256-wrap",
+        enc_key_len = 32,
+    },
+    ["A128CBC-HS256"] = {
+        aes = "aes-128-cbc",
+        hmac = "sha256",
+        mac_key_len = 16,
+        enc_key_len = 16,
+    },
+    ["A192CBC-HS384"] = {
+        aes = "aes-192-cbc",
+        hmac = "sha384",
+        mac_key_len = 24,
+        enc_key_len = 24,
+    },
+    ["A256CBC-HS512"] = {
+        aes = "aes-256-cbc",
+        hmac = "sha512",
+        mac_key_len = 32,
+        enc_key_len = 32,
+    },
 }
 
 local verify_default_options = {
@@ -39,17 +74,32 @@ local verify_default_options = {
     timestamp_skew_seconds = 1,
 }
 
+local decrypt_default_options = {
+    valid_encryption_alg_algorithms = {
+        ["A128KW"]="A128KW", ["A192KW"]="A192KW", ["A256KW"]="A256KW",
+        ["dir"]="dir",
+    },
+    valid_encryption_enc_algorithms = {
+        ["A128CBC-HS256"]="A128CBC-HS256",
+        ["A192CBC-HS384"]="A192CBC-HS384",
+        ["A256CBC-HS512"]="A256CBC-HS512",
+    },
+    typ = nil,
+    issuer = nil,
+    audiences = nil,
+    subject = nil,
+    jwtid = nil,
+    ignore_not_before = false,
+    ignore_expiration = false,
+    current_unix_timestamp = nil,
+    timestamp_skew_seconds = 1,
+}
+
 ---decode_base64_segment_to_string Decode an encoded string in base64.
 ---@param base64_str string base64 encoded string.
 ---@return string, string Parsed string or error string.
 local function decode_base64_segment_to_string(base64_str)
-    base64_str = string.gsub(base64_str, "-", "+")
-    base64_str = string.gsub(base64_str, "_", "/")
-    local reminder = #base64_str % 4
-    if reminder > 0 then
-        base64_str = base64_str .. string.rep("=", 4 - reminder)
-    end
-    local decoded_header = ngx.decode_base64(base64_str)
+    local decoded_header = b64.decode_base64url(base64_str)
     if decoded_header == nil then
         return nil, "failed decoding base64 string: " .. base64_str
     end
@@ -83,13 +133,18 @@ end
 ---@return table Array containing jwt sections still base64 encoded.
 local function split_jwt_sections(jwt_token)
     local t = {}
-    for substr in string.gmatch(jwt_token, "([^.]+)") do
-        table.insert(t, substr)
-    end
-    -- it's possible the signature part won't be there (e.g. none alg).
-    if #t == 2 then
-        table.insert(t, "")
-    end
+    local begin_pos = 1
+    local end_pos
+    repeat
+        end_pos = string.find(jwt_token, ".", begin_pos, true)
+        if end_pos == nil then
+            table.insert(t, string.sub(jwt_token, begin_pos))
+            break
+        end
+
+        table.insert(t, string.sub(jwt_token, begin_pos, end_pos - 1))
+        begin_pos = end_pos + 1
+    until false
     return t
 end
 
@@ -173,11 +228,74 @@ local function verify_jwt_audiences(jwt_audiences, options_audiences)
     return false
 end
 
+---verify_claims Check already verified or decrypted jwt against user validation options.
+---@param jwt_header table Verified jwt header as table.
+---@param jwt_payload table Verified or decrypted jwt payload as table (or string if jwe is not containing a jwt).
+---@param options table User defined or default jwt validation options to check.
+---@return boolean, string true if jwt claims verification succeeded, nil and error string otherwise.
+local function verify_claims(jwt_header, jwt_payload, options)
+    if options.typ ~= nil then
+        if jwt_header.typ ~= options.typ then
+            return nil, "jwt validation failed: header claim 'typ' mismatch: " .. (jwt_header.typ or "nil")
+        end
+    end
+    if options.issuer ~= nil then
+        if jwt_payload.iss ~= options.issuer then
+            return nil, "jwt validation failed: claim 'iss' mismatch: " .. (jwt_payload.iss or "nil")
+        end
+    end
+    if options.audiences ~= nil then
+        -- from jwt rfc 4.1.3:
+        --   In the special case when the JWT has one audience, the "aud" value MAY be a
+        --   single case-sensitive string containing a StringOrURI value.
+        if type(jwt_payload.aud) == "string" then
+            if not verify_jwt_audiences({ jwt_payload.aud }, options.audiences) then
+                return nil, "jwt validation failed: claim 'aud' mismatch"
+            end
+        elseif type(jwt_payload.aud) == "table" then
+            if not verify_jwt_audiences(jwt_payload.aud, options.audiences) then
+                return nil, "jwt validation failed: claim 'aud' mismatch"
+            end
+        else
+            return nil, "invalid jwt: claim 'aud' has invalid type"
+        end
+    end
+    if options.subject ~= nil then
+        if jwt_payload.sub ~= options.subject then
+            return nil, "jwt validation failed: claim 'sub' mismatch: " .. jwt_payload.sub
+        end
+    end
+    if options.jwtid ~= nil then
+        if jwt_payload.jti ~= options.jwtid then
+            return nil, "jwt validation failed: claim 'jti' mismatch: " .. jwt_payload.jti
+        end
+    end
+
+    if jwt_payload.nbf ~= nil and options.ignore_not_before ~= true then
+        if type(jwt_payload.nbf) ~= "number" then
+            return nil, "invalid jwt: nbf claim must be a number"
+        end
+        if jwt_payload.nbf > options.current_unix_timestamp then
+            return nil, "jwt validation failed: token is not yet valid (nbf claim)"
+        end
+    end
+    if jwt_payload.exp ~= nil and options.ignore_expiration ~= true then
+        if type(jwt_payload.exp) ~= "number" then
+            return nil, "invalid jwt: exp claim must be a number"
+        end
+        if options.current_unix_timestamp >= jwt_payload.exp + options.timestamp_skew_seconds then
+            return nil, "jwt validation failed: token has expired (exp claim)"
+        end
+    end
+
+    return true
+end
+
 ---verify Verify jwt token and its claims.
 ---@param jwt_token string Raw jwt token.
 ---@param secret string Secret for symmetric signature or public key in either PEM, DER or JWK format.
 ---@param options table Configuration used to verify the jwt.
----@return table, string Parsed jwt if valid or error string.
+---@return table, string Parsed jwt if valid, nil and error string otherwise.
 function _M.verify(jwt_token, secret, options)
     if jwt_token == nil or secret == nil then
         return nil, "invalid configuration: both jwt token and a secret are required"
@@ -222,19 +340,21 @@ function _M.verify(jwt_token, secret, options)
     if jwt_header == nil then
         return nil, "invalid jwt: failed decoding jwt header from base64"
     end
-    if jwt_header.alg == nil or type(jwt_header.alg) ~= "string" then
-        return nil, "invalid jwt: missing required string header claim 'alg'"
-    end
-
     local jwt_payload = decode_base64_segment_to_table(jwt_sections[2])
     if jwt_payload == nil then
         return nil, "invalid jwt: failed decoding jwt payload from base64"
     end
-
     local jwt_signature = decode_base64_segment_to_string(jwt_sections[3])
     if jwt_signature == nil then
         return nil, "invalid jwt: failed decoding jwt signature from base64"
     end
+
+    --- jwe sanity checks ---
+
+    if jwt_header.alg == nil or type(jwt_header.alg) ~= "string" then
+        return nil, "invalid jwt: missing or invalid required string header claim 'alg'"
+    end
+    -- TODO: verify crit claim here
 
     -- jwt verify signature --
 
@@ -283,58 +403,9 @@ function _M.verify(jwt_token, secret, options)
 
     -- jwt verify claims --
 
-    if options.typ ~= nil then
-        if jwt_header.typ ~= options.typ then
-            return nil, "jwt validation failed: header claim 'typ' mismatch: " .. jwt_header.typ
-        end
-    end
-    if options.issuer ~= nil then
-        if jwt_payload.iss ~= options.issuer then
-            return nil, "jwt validation failed: claim 'iss' mismatch: " .. jwt_payload.iss
-        end
-    end
-    if options.audiences ~= nil then
-        -- from jwt rfc 4.1.3:
-        --   In the special case when the JWT has one audience, the "aud" value MAY be a
-        --   single case-sensitive string containing a StringOrURI value.
-        if type(jwt_payload.aud) == "string" then
-            if not verify_jwt_audiences({ jwt_payload.aud }, options.audiences) then
-                return nil, "jwt validation failed: claim 'aud' mismatch"
-            end
-        elseif type(jwt_payload.aud) == "table" then
-            if not verify_jwt_audiences(jwt_payload.aud, options.audiences) then
-                return nil, "jwt validation failed: claim 'aud' mismatch"
-            end
-        else
-            return nil, "invalid jwt: claim 'aud' has invalid type"
-        end
-    end
-    if options.subject ~= nil then
-        if jwt_payload.sub ~= options.subject then
-            return nil, "jwt validation failed: claim 'sub' mismatch: " .. jwt_payload.sub
-        end
-    end
-    if options.jwtid ~= nil then
-        if jwt_payload.jti ~= options.jwtid then
-            return nil, "jwt validation failed: claim 'jti' mismatch: " .. jwt_payload.jti
-        end
-    end
-
-    if jwt_payload.nbf ~= nil and options.ignore_not_before ~= true then
-        if type(jwt_payload.nbf) ~= "number" then
-            return nil, "invalid jwt: nbf claim must be a number"
-        end
-        if jwt_payload.nbf > options.current_unix_timestamp then
-            return nil, "jwt validation failed: token is not yet valid (nbf claim)"
-        end
-    end
-    if jwt_payload.exp ~= nil then
-        if type(jwt_payload.exp) ~= "number" then
-            return nil, "invalid jwt: exp claim must be a number"
-        end
-        if options.current_unix_timestamp >= jwt_payload.exp + options.timestamp_skew_seconds then
-            return nil, "jwt validation failed: token has expired (exp claim)"
-        end
+    local verify_res, err = verify_claims(jwt_header, jwt_payload, options)
+    if verify_res == nil then
+        return nil, err
     end
 
     --- jwt is valid ---
@@ -342,6 +413,221 @@ function _M.verify(jwt_token, secret, options)
     return {
         header = jwt_header,
         payload = jwt_payload,
+    }
+end
+
+---derive_cek_alg_dir Extract Content Encryption Key (CEK) necessary for later payload decryption using 'dir' algs.
+---@param enc_info table CEK encryption 'enc' parameters used for key extraction.
+---@param secret string CEK decryption secret.
+---@return string, string CEK on success, nil and error message otherwise.
+local function derive_cek_alg_dir(enc_info, secret)
+    if enc_info == nil then
+        return nil, "unsupported enc in cek calculation"
+    end
+
+    local secret_key_len = enc_info.mac_key_len + enc_info.enc_key_len
+    if #secret ~= secret_key_len then
+        return nil, "secret key has not expected length of " .. secret_key_len
+    end
+
+    return string.sub(secret, enc_info.mac_key_len + 1)
+end
+
+---derive_cek_alg_aes_kw Extract Content Encryption Key (CEK) necessary for later payload decryption
+---using AES KW family algs.
+---@param enc_info table CEK encryption 'alg' parameters used for key extraction.
+---@param secret string CEK decryption secret.
+---@param encrypted_key string Encrypted CEK embedded in the jwt but already base64 decoded.
+---@return string, string CEK on success, nil and error message otherwise.
+local function derive_cek_alg_aes_kw(enc_info, secret, encrypted_key)
+    if enc_info == nil then
+        return nil, "unsupported enc in cek calculation"
+    end
+
+    if #secret ~= enc_info.enc_key_len then
+        return nil, "secret key has not expected length of " .. enc_info.enc_key_len
+    end
+
+    local c, err = cipher.new(enc_info.aes)
+    if c == nil then
+        return nil, "failed creating openssl cipher: " .. err
+    end
+
+    local decrypted_cek, _ =  c:decrypt(secret, ngx.decode_base64("pqampqampqY="), encrypted_key)
+    if decrypted_cek == nil then
+        return false
+    end
+    return decrypted_cek
+end
+
+---decrypt_content_cbc Decrypt payload using AES-CBC family algs and verify given AEAD tag.
+---@param enc_info table Decryption algorithm's specific settings.
+---@param cek string CEK used for ciphertext decryption.
+---@param ciphertext string Payload to decrypt.
+---@param iv string Initialization Vector used during decryption.
+---@param tag string AEAD computed tag to verify against.
+---@param aad table AEAD tag to verify.
+---@return string, string Decrypted payload on success, false on invalid cek, nil and error string otherwise.
+local function decrypt_content_cbc(enc_info, cek, ciphertext, iv, tag, aad)
+    local c, err = cipher.new(enc_info.aes)
+    if c == nil then
+        return nil, "failed creating openssl cipher: " .. err
+    end
+
+    -- FIXME: validate AEAD aad against tag
+    local decrypted_payload, _ = c:decrypt(cek, iv, ciphertext, false)
+    if decrypted_payload == nil then
+        return false
+    end
+    return decrypted_payload
+end
+
+function _M.decrypt(jwt_token, secret, options)
+    if jwt_token == nil or secret == nil then
+        return nil, "invalid configuration: both jwt token and a secret are required"
+    end
+
+    if options == nil then
+        options = decrypt_default_options
+        options.current_unix_timestamp = ngx.time()
+    elseif type(options) ~= "table" then
+        return nil, "invalid configuration: parameter options is not a valid table"
+    else
+        if options.valid_encryption_alg_algorithms == nil then options.valid_encryption_alg_algorithms = decrypt_default_options.valid_encryption_alg_algorithms end
+        if options.valid_encryption_enc_algorithms == nil then options.valid_encryption_enc_algorithms = decrypt_default_options.valid_encryption_enc_algorithms end
+        if options.ignore_not_before == nil then options.ignore_not_before = decrypt_default_options.ignore_not_before end
+        if options.ignore_expiration == nil then options.ignore_expiration = decrypt_default_options.ignore_expiration end
+        if options.current_unix_timestamp == nil then options.current_unix_timestamp = ngx.time() end
+        if options.timestamp_skew_seconds == nil then options.timestamp_skew_seconds = decrypt_default_options.timestamp_skew_seconds end
+
+        -- ensure sensible configuration
+        if options.audiences ~= nil then
+            if isempty(options.audiences) then
+                return nil, "invalid configuration: parameter options.audiences must contain at least a string"
+            end
+            if not isarray(options.audiences) then
+                return nil, "invalid configuration: parameter options.audiences must be an array"
+            end
+        end
+        if isarray(options.valid_encryption_alg_algorithms) then
+            -- we require a dict because we don't want to iterate over every single field in the array to check
+            -- the requested alg to be available...
+            return nil, "invalid configuration: parameter options.valid_encryption_alg_algorithms must be a dict"
+        end
+        if isarray(options.valid_encryption_enc_algorithms) then
+            -- we require a dict because we don't want to iterate over every single field in the array to check
+            -- the requested alg to be available...
+            return nil, "invalid configuration: parameter options.valid_encryption_enc_algorithms must be a dict"
+        end
+    end
+
+    --- jwe parsing ---
+
+    local jwt_sections = split_jwt_sections(jwt_token)
+    if #jwt_sections ~= 5 then
+        -- note: we only support compact jwt with 5 sections instead of 6
+        return nil, "invalid jwt: found '" .. #jwt_sections .. "' sections instead of expected 5"
+    end
+
+    local jwt_header = decode_base64_segment_to_table(jwt_sections[1])
+    if jwt_header == nil then
+        return nil, "invalid jwt: failed decoding jwt header from base64"
+    end
+    local jwt_encrypted_key = decode_base64_segment_to_string(jwt_sections[2])
+    if jwt_encrypted_key == nil then
+        return nil, "invalid jwt: failed decoding jwt encrypted key from base64"
+    end
+    local jwt_iv = decode_base64_segment_to_string(jwt_sections[3])
+    if jwt_iv == nil then
+        return nil, "invalid jwt: failed decoding jwt iv from base64"
+    end
+    local jwt_ciphertext = decode_base64_segment_to_string(jwt_sections[4])
+    if jwt_ciphertext == nil then
+        return nil, "invalid jwt: failed decoding jwt ciphertext from base64"
+    end
+    local jwt_auth_tag = decode_base64_segment_to_string(jwt_sections[5])
+    if jwt_auth_tag == nil then
+        return nil, "invalid jwt: failed decoding jwt authentication tag from base64"
+    end
+
+    --- jwe sanity checks ---
+
+    if jwt_header.alg == nil or type(jwt_header.alg) ~= "string" then
+        return nil, "invalid jwt: missing or invalid required string header claim 'alg'"
+    end
+    if jwt_header.enc == nil or type(jwt_header.enc) ~= "string" then
+        return nil, "invalid jwt:  or invalid required string header claim 'enc'"
+    end
+    if jwt_header.zip ~= nil then
+        return nil, "invalid jwt: claim 'zip' is not supported"
+    end
+    -- TODO: verify crit claim here
+
+    -- jwe decryption --
+
+    if options.valid_encryption_alg_algorithms[jwt_header.alg] == nil then
+        return nil, "jwt validation failed: encryption algorithm 'alg' is not enabled: " .. jwt_header.alg
+    end
+    if options.valid_encryption_enc_algorithms[jwt_header.enc] == nil then
+        return nil, "jwt validation failed: encryption algorithm 'enc' is not enabled: " .. jwt_header.enc
+    end
+
+    local cek, err
+    if jwt_header.alg == "dir" then
+        cek, err = derive_cek_alg_dir(decrypt_alg_table[jwt_header.enc], secret)
+    elseif jwt_header.alg == "A128KW" or jwt_header.alg == "A192KW" or jwt_header.alg == "A256KW" then
+        cek, err = derive_cek_alg_aes_kw(decrypt_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
+        if cek == nil then
+            return nil, "invalid jwt: " .. err
+        elseif not cek then
+            return nil, "invalid jwt: failed decrypting cek"
+        end
+        cek, err = derive_cek_alg_dir(decrypt_alg_table[jwt_header.enc], cek)
+    else
+        return nil, "unknown or unsupported jwt alg: " .. jwt_header.alg
+    end
+    if cek == nil then
+        return nil, "invalid jwt: " .. err
+    end
+
+    local aad = decode_base64_segment_to_string(jwt_sections[1])
+
+    local decrypted_payload
+    if jwt_header.enc == "A128CBC-HS256" or jwt_header.enc == "A192CBC-HS384" or jwt_header.enc == "A256CBC-HS512" then
+        decrypted_payload, err = decrypt_content_cbc(
+            decrypt_alg_table[jwt_header.enc],
+            cek,
+            jwt_ciphertext,
+            jwt_iv,
+            jwt_auth_tag,
+            aad
+        )
+    else
+        return nil, "unknown or unsupported jwt enc: " .. jwt_header.enc
+    end
+    if decrypted_payload == nil then
+        return nil, "invalid jwt: " .. err
+    elseif not decrypted_payload then
+        return nil, "invalid jwt: failed decrypting jwt payload"
+    end
+
+    -- jwt verify claims --
+
+    decrypted_payload, err = cjson.decode(decrypted_payload);
+    if decrypted_payload == nil then
+        return nil, "invalid jwt: failed reading decrypted payload: " .. err
+    end
+
+    local verify_res, err = verify_claims(jwt_header, decrypted_payload, options)
+    if verify_res == nil then
+        return nil, err
+    end
+
+    --- jwt is valid ---
+
+    return {
+        header = jwt_header,
+        payload = decrypted_payload,
     }
 end
 

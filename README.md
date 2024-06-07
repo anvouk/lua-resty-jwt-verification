@@ -13,6 +13,20 @@
 
 ### JWS Verify
 
+|  Claims  |    Implemented     |
+|:--------:|:------------------:|
+|   alg    | :white_check_mark: |
+|   jku    |        :x:         |
+|   jwk    |        :x:         |
+|   kid    |        :x:         |
+|   x5u    |        :x:         |
+|   x5c    |        :x:         |
+|   x5t    |        :x:         |
+| x5t#S256 |        :x:         |
+|   typ    | :white_check_mark: |
+|   cty    |        :x:         |
+|   crit   |        :x:         |
+
 |  Alg  |    Implemented     |
 |:-----:|:------------------:|
 | HS256 | :white_check_mark: |
@@ -31,22 +45,38 @@
 
 ### JWE Decryption
 
-|        Alg         |     Implemented     |
-|:------------------:|:-------------------:|
-|       RSA1_5       |         :x:         |
-|      RSA-OAEP      |         :x:         |
-|    RSA-OAEP-256    |         :x:         |
-|       A128KW       | :white_check_mark:  |
-|       A192KW       | :white_check_mark:  |
-|       A256KW       | :white_check_mark:  |
-|        dir         |         :x:         |
-|      ECDH-ES       |         :x:         |
-|     A128GCMKW      |         :x:         |
-|     A192GCMKW      |         :x:         |
-|     A256GCMKW      |         :x:         |
-| PBES2-HS256+A128KW |         :x:         |
-| PBES2-HS384+A192KW |         :x:         |
-| PBES2-HS512+A256KW |         :x:         |
+|  Claims  |    Implemented     |
+|:--------:|:------------------:|
+|   alg    | :white_check_mark: |
+|   enc    | :white_check_mark: |
+|   zip    |        :x:         |
+|   jku    |        :x:         |
+|   jwk    |        :x:         |
+|   kid    |        :x:         |
+|   x5u    |        :x:         |
+|   x5c    |        :x:         |
+|   x5t    |        :x:         |
+| x5t#S256 |        :x:         |
+|   typ    | :white_check_mark: |
+|   cty    |        :x:         |
+|   crit   |        :x:         |
+
+|        Alg         |     Implemented     | Requirements |
+|:------------------:|:-------------------:|:------------:|
+|       RSA1_5       |         :x:         |              |
+|      RSA-OAEP      |         :x:         |              |
+|    RSA-OAEP-256    |         :x:         |              |
+|       A128KW       | :white_check_mark:  | OpenSSL 3.0+ |
+|       A192KW       | :white_check_mark:  | OpenSSL 3.0+ |
+|       A256KW       | :white_check_mark:  | OpenSSL 3.0+ |
+|        dir         | :white_check_mark:  |              |
+|      ECDH-ES       |         :x:         |              |
+|     A128GCMKW      |         :x:         |              |
+|     A192GCMKW      |         :x:         |              |
+|     A256GCMKW      |         :x:         |              |
+| PBES2-HS256+A128KW |         :x:         |              |
+| PBES2-HS384+A192KW |         :x:         |              |
+| PBES2-HS512+A256KW |         :x:         |              |
 
 |      Enc      |     Implemented     |
 |:-------------:|:-------------------:|

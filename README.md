@@ -87,14 +87,14 @@ Ready for testing: looking for more people to take it for a spin and provide fee
 | PBES2-HS384+A192KW |         :x:         |              |
 | PBES2-HS512+A256KW |         :x:         |              |
 
-|      Enc      |     Implemented     |
-|:-------------:|:-------------------:|
-| A128CBC-HS256 | :white_check_mark:  |
-| A192CBC-HS384 | :white_check_mark:  |
-| A256CBC-HS512 | :white_check_mark:  |
-|    A128GCM    |         :x:         |
-|    A192GCM    |         :x:         |
-|    A256GCM    |         :x:         |
+|      Enc      |    Implemented     |
+|:-------------:|:------------------:|
+| A128CBC-HS256 | :white_check_mark: |
+| A192CBC-HS384 | :white_check_mark: |
+| A256CBC-HS512 | :white_check_mark: |
+|    A128GCM    | :white_check_mark: |
+|    A192GCM    | :white_check_mark: |
+|    A256GCM    | :white_check_mark: |
 
 ## Library non-goals
 

@@ -54,6 +54,21 @@ local decrypt_alg_table = {
         mac_key_len = 32,
         enc_key_len = 32,
     },
+    ["A128GCM"] = {
+        aes = "aes-128-gcm",
+        mac_key_len = 0,
+        enc_key_len = 16,
+    },
+    ["A192GCM"] = {
+        aes = "aes-192-gcm",
+        mac_key_len = 0,
+        enc_key_len = 24,
+    },
+    ["A256GCM"] = {
+        aes = "aes-256-gcm",
+        mac_key_len = 0,
+        enc_key_len = 32,
+    },
 }
 
 local verify_default_options = {
@@ -83,6 +98,9 @@ local decrypt_default_options = {
         ["A128CBC-HS256"]="A128CBC-HS256",
         ["A192CBC-HS384"]="A192CBC-HS384",
         ["A256CBC-HS512"]="A256CBC-HS512",
+        ["A128GCM"]="A128GCM",
+        ["A192GCM"]="A192GCM",
+        ["A256GCM"]="A256GCM",
     },
     typ = nil,
     issuer = nil,
@@ -465,17 +483,38 @@ end
 ---@param cek string CEK used for ciphertext decryption.
 ---@param ciphertext string Payload to decrypt.
 ---@param iv string Initialization Vector used during decryption.
----@param tag string AEAD computed tag to verify against.
----@param aad table AEAD tag to verify.
+---@param aead_aad string AEAD tag to verify.
+---@param aead_tag string AEAD computed tag to verify against.
 ---@return string, string Decrypted payload on success, false on invalid cek, nil and error string otherwise.
-local function decrypt_content_cbc(enc_info, cek, ciphertext, iv, tag, aad)
+local function decrypt_content_cbc(enc_info, cek, ciphertext, iv, aead_aad, aead_tag)
     local c, err = cipher.new(enc_info.aes)
     if c == nil then
         return nil, "failed creating openssl cipher: " .. err
     end
 
-    -- FIXME: validate AEAD aad against tag
+    -- FIXME: validate aead_aad against aead_tag
     local decrypted_payload, _ = c:decrypt(cek, iv, ciphertext, false)
+    if decrypted_payload == nil then
+        return false
+    end
+    return decrypted_payload
+end
+
+---decrypt_content_gcm Decrypt payload using AES-GCM family algs and verify given AEAD tag.
+---@param enc_info table Decryption algorithm's specific settings.
+---@param cek string CEK used for ciphertext decryption.
+---@param ciphertext string Payload to decrypt.
+---@param iv string Initialization Vector used during decryption.
+---@param aead_aad string AEAD tag to verify.
+---@param aead_tag string AEAD computed tag to verify against.
+---@return string, string Decrypted payload on success, false on invalid cek, nil and error string otherwise.
+local function decrypt_content_gcm(enc_info, cek, ciphertext, iv, aead_aad, aead_tag)
+    local c, err = cipher.new(enc_info.aes)
+    if c == nil then
+        return nil, "failed creating openssl cipher: " .. err
+    end
+
+    local decrypted_payload, _ = c:decrypt(cek, iv, ciphertext, false, aead_aad, aead_tag)
     if decrypted_payload == nil then
         return false
     end
@@ -590,7 +629,7 @@ function _M.decrypt(jwt_token, secret, options)
         return nil, "invalid jwt: " .. err
     end
 
-    local aad = decode_base64_segment_to_string(jwt_sections[1])
+    local aad = jwt_sections[1]
 
     local decrypted_payload
     if jwt_header.enc == "A128CBC-HS256" or jwt_header.enc == "A192CBC-HS384" or jwt_header.enc == "A256CBC-HS512" then
@@ -599,8 +638,17 @@ function _M.decrypt(jwt_token, secret, options)
             cek,
             jwt_ciphertext,
             jwt_iv,
-            jwt_auth_tag,
-            aad
+            aad,
+            jwt_auth_tag
+        )
+    elseif jwt_header.enc == "A128GCM" or jwt_header.enc == "A192GCM" or jwt_header.enc == "A256GCM" then
+        decrypted_payload, err = decrypt_content_gcm(
+            decrypt_alg_table[jwt_header.enc],
+            cek,
+            jwt_ciphertext,
+            jwt_iv,
+            aad,
+            jwt_auth_tag
         )
     else
         return nil, "unknown or unsupported jwt enc: " .. jwt_header.enc

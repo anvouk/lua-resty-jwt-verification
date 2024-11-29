@@ -3,8 +3,8 @@ local cjson = require("cjson.safe")
 local pkey = require("resty.openssl.pkey")
 local hmac = require("resty.openssl.hmac")
 local cipher = require("resty.openssl.cipher")
-local isempty = require("table.isempty")
-local isarray = require("table.isarray")
+local table_isempty = require("table.isempty")
+local table_isarray = require("table.isarray")
 
 local _M = { _VERSION = "0.1.0" }
 
@@ -333,14 +333,14 @@ function _M.verify(jwt_token, secret, options)
 
         -- ensure sensible configuration
         if options.audiences ~= nil then
-            if isempty(options.audiences) then
+            if table_isempty(options.audiences) then
                 return nil, "invalid configuration: parameter options.audiences must contain at least a string"
             end
-            if not isarray(options.audiences) then
+            if not table_isarray(options.audiences) then
                 return nil, "invalid configuration: parameter options.audiences must be an array"
             end
         end
-        if isarray(options.valid_signing_algorithms) then
+        if table_isarray(options.valid_signing_algorithms) then
             -- we require a dict because we don't want to iterate over every single field in the array to check
             -- the requested alg to be available...
             return nil, "invalid configuration: parameter options.valid_signing_algorithms must be a dict"
@@ -434,21 +434,23 @@ function _M.verify(jwt_token, secret, options)
     }
 end
 
----derive_cek_alg_dir Extract Content Encryption Key (CEK) necessary for later payload decryption using 'dir' algs.
+---derive_cek_alg_dir Extract CEK for content decryption and mac key for authentication.
 ---@param enc_info table CEK encryption 'enc' parameters used for key extraction.
 ---@param secret string CEK decryption secret.
----@return string, string CEK on success, nil and error message otherwise.
-local function derive_cek_alg_dir(enc_info, secret)
+---@return string, string, string CEK and mac key on success, nil nil and error message otherwise.
+local function derive_keys_alg_dir(enc_info, secret)
     if enc_info == nil then
-        return nil, "unsupported enc in cek calculation"
+        return nil, nil, "unsupported enc in cek calculation"
     end
 
     local secret_key_len = enc_info.mac_key_len + enc_info.enc_key_len
     if #secret ~= secret_key_len then
-        return nil, "secret key has not expected length of " .. secret_key_len
+        return nil, nil, "secret key has not expected length of " .. secret_key_len
     end
 
-    return string.sub(secret, enc_info.mac_key_len + 1)
+    local cek = string.sub(secret, enc_info.mac_key_len + 1)
+    local mac_key = string.sub(secret, 1, enc_info.mac_key_len)
+    return cek, mac_key
 end
 
 ---derive_cek_alg_aes_kw Extract Content Encryption Key (CEK) necessary for later payload decryption
@@ -471,28 +473,60 @@ local function derive_cek_alg_aes_kw(enc_info, secret, encrypted_key)
         return nil, "failed creating openssl cipher: " .. err
     end
 
-    local decrypted_cek, _ =  c:decrypt(secret, ngx.decode_base64("pqampqampqY="), encrypted_key)
+    local decrypted_cek, _ = c:decrypt(secret, ngx.decode_base64("pqampqampqY="), encrypted_key)
     if decrypted_cek == nil then
         return false
     end
     return decrypted_cek
 end
 
+---binlen 64-bit big-endian representation of string length.
+---See https://datatracker.ietf.org/doc/html/rfc7516#appendix-B.3
+---Note: this function has been ported from lua-resty-jwt
+---@param s string Data
+---@return number Length of data
+local function binlen(s)
+    local len = 8 * #s
+
+    return string.char(len / 0x0100000000000000 % 0x100)
+        .. string.char(len / 0x0001000000000000 % 0x100)
+        .. string.char(len / 0x0000010000000000 % 0x100)
+        .. string.char(len / 0x0000000100000000 % 0x100)
+        .. string.char(len / 0x0000000001000000 % 0x100)
+        .. string.char(len / 0x0000000000010000 % 0x100)
+        .. string.char(len / 0x0000000000000100 % 0x100)
+        .. string.char(len / 0x0000000000000001 % 0x100)
+end
+
 ---decrypt_content_cbc Decrypt payload using AES-CBC family algs and verify given AEAD tag.
 ---@param enc_info table Decryption algorithm's specific settings.
 ---@param cek string CEK used for ciphertext decryption.
+---@param mac_key string used for ciphertext authentication.
 ---@param ciphertext string Payload to decrypt.
 ---@param iv string Initialization Vector used during decryption.
 ---@param aead_aad string AEAD tag to verify.
 ---@param aead_tag string AEAD computed tag to verify against.
 ---@return string, string Decrypted payload on success, false on invalid cek, nil and error string otherwise.
-local function decrypt_content_cbc(enc_info, cek, ciphertext, iv, aead_aad, aead_tag)
+local function decrypt_content_cbc(enc_info, cek, mac_key, ciphertext, iv, aead_aad, aead_tag)
     local c, err = cipher.new(enc_info.aes)
     if c == nil then
         return nil, "failed creating openssl cipher: " .. err
     end
 
-    -- FIXME: validate aead_aad against aead_tag
+    local mac_data = table.concat({aead_aad, iv, ciphertext, binlen(aead_aad)})
+    local computed_mac, err = hmac_sign(mac_data, mac_key, enc_info.hmac)
+    if computed_mac == nil then
+        return nil, "failed computing aead tag: " .. err
+    end
+    local computed_tag = string.sub(computed_mac, 1, enc_info.mac_key_len)
+
+    -- FIXME: find a way to do this comparison in constant time
+    if computed_tag ~= aead_tag then
+        return false, "aead tag verification does not match"
+        --return false, "aead tag verification does not match: '" .. computed_tag .. "' != '" .. aead_tag .. "' mac_key: " .. mac_key
+    end
+
+    -- cipher:decrypt(key, iv?, s, no_padding?, aead_aad?, aead_tag?)
     local decrypted_payload, _ = c:decrypt(cek, iv, ciphertext, false)
     if decrypted_payload == nil then
         return false
@@ -514,6 +548,7 @@ local function decrypt_content_gcm(enc_info, cek, ciphertext, iv, aead_aad, aead
         return nil, "failed creating openssl cipher: " .. err
     end
 
+    -- cipher:decrypt(key, iv?, s, no_padding?, aead_aad?, aead_tag?)
     local decrypted_payload, _ = c:decrypt(cek, iv, ciphertext, false, aead_aad, aead_tag)
     if decrypted_payload == nil then
         return false
@@ -541,19 +576,19 @@ function _M.decrypt(jwt_token, secret, options)
 
         -- ensure sensible configuration
         if options.audiences ~= nil then
-            if isempty(options.audiences) then
+            if table_isempty(options.audiences) then
                 return nil, "invalid configuration: parameter options.audiences must contain at least a string"
             end
-            if not isarray(options.audiences) then
+            if not table_isarray(options.audiences) then
                 return nil, "invalid configuration: parameter options.audiences must be an array"
             end
         end
-        if isarray(options.valid_encryption_alg_algorithms) then
+        if table_isarray(options.valid_encryption_alg_algorithms) then
             -- we require a dict because we don't want to iterate over every single field in the array to check
             -- the requested alg to be available...
             return nil, "invalid configuration: parameter options.valid_encryption_alg_algorithms must be a dict"
         end
-        if isarray(options.valid_encryption_enc_algorithms) then
+        if table_isarray(options.valid_encryption_enc_algorithms) then
             -- we require a dict because we don't want to iterate over every single field in the array to check
             -- the requested alg to be available...
             return nil, "invalid configuration: parameter options.valid_encryption_enc_algorithms must be a dict"
@@ -611,9 +646,9 @@ function _M.decrypt(jwt_token, secret, options)
         return nil, "jwt validation failed: encryption algorithm 'enc' is not enabled: " .. jwt_header.enc
     end
 
-    local cek, err
+    local cek, mac_key, err
     if jwt_header.alg == "dir" then
-        cek, err = derive_cek_alg_dir(decrypt_alg_table[jwt_header.enc], secret)
+        cek, mac_key, err = derive_keys_alg_dir(decrypt_alg_table[jwt_header.enc], secret)
     elseif jwt_header.alg == "A128KW" or jwt_header.alg == "A192KW" or jwt_header.alg == "A256KW" then
         cek, err = derive_cek_alg_aes_kw(decrypt_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
         if cek == nil then
@@ -621,11 +656,11 @@ function _M.decrypt(jwt_token, secret, options)
         elseif not cek then
             return nil, "invalid jwt: failed decrypting cek"
         end
-        cek, err = derive_cek_alg_dir(decrypt_alg_table[jwt_header.enc], cek)
+        cek, mac_key, err = derive_keys_alg_dir(decrypt_alg_table[jwt_header.enc], cek)
     else
         return nil, "unknown or unsupported jwt alg: " .. jwt_header.alg
     end
-    if cek == nil then
+    if cek == nil or mac_key == nil then
         return nil, "invalid jwt: " .. err
     end
 
@@ -636,6 +671,7 @@ function _M.decrypt(jwt_token, secret, options)
         decrypted_payload, err = decrypt_content_cbc(
             decrypt_alg_table[jwt_header.enc],
             cek,
+            mac_key,
             jwt_ciphertext,
             jwt_iv,
             aad,
@@ -657,6 +693,7 @@ function _M.decrypt(jwt_token, secret, options)
         return nil, "invalid jwt: " .. err
     elseif not decrypted_payload then
         return nil, "invalid jwt: failed decrypting jwt payload"
+        --return nil, "invalid jwt: failed decrypting jwt payload: " .. err .. "; cek: " ..  cek
     end
 
     -- jwt verify claims --

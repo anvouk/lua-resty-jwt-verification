@@ -152,5 +152,5 @@ Install openresty: see https://openresty.org/en/linux-packages.html
 
 ```bash
 export PATH=/usr/local/openresty/nginx/sbin:$PATH
-prove t
+prove -r t
 ```

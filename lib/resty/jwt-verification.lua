@@ -71,6 +71,14 @@ local decrypt_alg_table = {
     },
 }
 
+-- used to verify 'crit' claim
+local crit_supported_claims_table = {
+    ["crit"]="crit",
+    ["alg"]="alg",
+    ["enc"]="enc",
+    ["typ"]="typ",
+}
+
 local verify_default_options = {
     valid_signing_algorithms = {
         ["HS256"]="HS256", ["HS384"]="HS384", ["HS512"]="HS512",
@@ -246,6 +254,29 @@ local function verify_jwt_audiences(jwt_audiences, options_audiences)
     return false
 end
 
+---verify_claim_crit Verifies crit calim as per jwt RFC.
+---@param crit_claims table Jwt crit claim array.
+---@return boolean, string true if jwt crit claim is successfully verified, nil and error string otherwise.
+local function verify_claim_crit(crit_claims)
+    if type(crit_claims) ~= "table" then
+        return nil, "jwt validation failed: crit claim is not an array"
+    end
+    if not table_isarray(crit_claims) then
+        return nil, "jwt validation failed: crit claim is not an array"
+    end
+    if table_isempty(crit_claims) then
+        return nil, "jwt validation failed: crit claim cannot be an empty array"
+    end
+
+    for _, claim in ipairs(crit_claims) do
+        if crit_supported_claims_table[claim] == nil then
+            return nil, "jwt validation failed: crit claim not supported by this lib: " .. claim
+        end
+    end
+
+    return true
+end
+
 ---verify_claims Check already verified or decrypted jwt against user validation options.
 ---@param jwt_header table Verified jwt header as table.
 ---@param jwt_payload table Verified or decrypted jwt payload as table (or string if jwe is not containing a jwt).
@@ -372,7 +403,12 @@ function _M.verify(jwt_token, secret, options)
     if jwt_header.alg == nil or type(jwt_header.alg) ~= "string" then
         return nil, "invalid jwt: missing or invalid required string header claim 'alg'"
     end
-    -- TODO: verify crit claim here
+    if jwt_header.crit ~= nil then
+        local crit_res, err = verify_claim_crit(jwt_header.crit)
+        if not crit_res then
+            return nil, "invalid jwt: " .. err
+        end
+    end
 
     -- jwt verify signature --
 
@@ -635,7 +671,12 @@ function _M.decrypt(jwt_token, secret, options)
     if jwt_header.zip ~= nil then
         return nil, "invalid jwt: claim 'zip' is not supported"
     end
-    -- TODO: verify crit claim here
+    if jwt_header.crit ~= nil then
+        local crit_res, err = verify_claim_crit(jwt_header.crit)
+        if not crit_res then
+            return nil, "invalid jwt: " .. err
+        end
+    end
 
     -- jwe decryption --
 

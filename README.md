@@ -34,7 +34,7 @@ Ready for testing: looking for more people to take it for a spin and provide fee
 | x5t#S256 |        :x:         |
 |   typ    | :white_check_mark: |
 |   cty    |        :x:         |
-|   crit   |        :x:         |
+|   crit   | :white_check_mark: |
 
 |  Alg  |    Implemented     |
 |:-----:|:------------------:|
@@ -68,7 +68,7 @@ Ready for testing: looking for more people to take it for a spin and provide fee
 | x5t#S256 |        :x:         |
 |   typ    | :white_check_mark: |
 |   cty    |        :x:         |
-|   crit   |        :x:         |
+|   crit   | :white_check_mark: |
 
 |        Alg         |     Implemented     | Requirements |
 |:------------------:|:-------------------:|:------------:|

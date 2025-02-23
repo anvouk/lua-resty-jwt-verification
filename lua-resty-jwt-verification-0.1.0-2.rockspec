@@ -1,6 +1,6 @@
 rockspec_format = "3.0"
 package = "lua-resty-jwt-verification"
-version = "0.1.0-1"
+version = "0.1.0-2"
 source = {
    url = "git+https://github.com/anvouk/lua-resty-jwt-verification",
    tag = "v0.1.0"
@@ -20,7 +20,6 @@ description = {
 }
 dependencies = {
   'lua >= 5.1',
-  'lua-cjson >= 2.1.0',
   'lua-resty-openssl >= 1.3.1'
 }
 build = {

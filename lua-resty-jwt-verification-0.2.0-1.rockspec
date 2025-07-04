@@ -1,21 +1,22 @@
 rockspec_format = "3.0"
 package = "lua-resty-jwt-verification"
-version = "0.1.0-2"
+version = "0.2.0-1"
 source = {
    url = "git+https://github.com/anvouk/lua-resty-jwt-verification",
-   tag = "v0.1.0"
+   tag = "v0.2.0"
 }
 description = {
    summary = "JWT verification library for OpenResty.",
    detailed = [[
-     Modern JWT verification library for OpenResty.
+     Modern JWT verification library for OpenResty with JWKS support.
    ]],
    homepage = "https://github.com/anvouk/lua-resty-jwt-verification",
    license = "BSD-3-Clause license",
    issues_url = "https://github.com/anvouk/lua-resty-jwt-verification/issues",
    labels = {
      "openresty",
-     "jwt"
+     "jwt",
+     "jwks"
    }
 }
 dependencies = {

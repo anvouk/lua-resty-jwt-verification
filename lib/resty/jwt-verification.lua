@@ -6,7 +6,7 @@ local cipher = require("resty.openssl.cipher")
 local table_isempty = require("table.isempty")
 local table_isarray = require("table.isarray")
 
-local _M = { _VERSION = "0.1.0" }
+local _M = { _VERSION = "0.2.0" }
 
 local md_alg_table = {
     ["HS256"] = "sha256",

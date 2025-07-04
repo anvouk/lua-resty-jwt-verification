@@ -11,12 +11,19 @@ JWT verification library for OpenResty.
 - [Supported features](#supported-features)
   - [JWS Verification](#jws-verification)
   - [JWE Decryption](#jwe-decryption)
-- [Missing features](#missing-features)
+  - [JWKS retrieval cache strategies](#jwks-retrieval-cache-strategies)
+- [Planned missing features](#planned-missing-features)
 - [Dependencies](#dependencies)
-- [JWT Verification Usage](#jwt-verification-usage)
+- [JWT verification usage](#jwt-verification-usage)
   - [jwt.decode_header_unsafe](#jwtdecode_header_unsafe)
   - [jwt.verify](#jwtverify)
   - [jwt.decrypt](#jwtdecrypt)
+- [JWKS verification usage](#jwks-verification-usage)
+  - [jwks.enable_cache_strategy_local](#jwksenable_cache_strategy_local)
+  - [jwks.set_http_timeouts_ms](#jwksset_http_timeouts_ms)
+  - [jwks.set_http_ssl_verify](#jwksset_http_ssl_verify)
+  - [jwks.fetch_jwks](#jwksfetch_jwks)
+  - [jwks.verify_jwt_with_jwks](#jwksverify_jwt_with_jwks)
 - [RFCs used as reference](#rfcs-used-as-reference)
 - [Run tests](#run-tests)
   - [Setup](#setup)
@@ -26,13 +33,16 @@ JWT verification library for OpenResty.
 
 JWT verification library for OpenResty.
 
-The project's goal is to be a modern and slimmer replacement for [lua-resty-jwt](https://github.com/cdbattags/lua-resty-jwt/).
+The project's goal is to be a modern and slimmer replacement for [lua-resty-jwt](https://github.com/cdbattags/lua-resty-jwt/)
+with built-in support for JWKS.
 
 This project does not provide JWT manipulation or creation features: you can only verify/decrypt tokens.
 
 ## Status
 
 Ready for testing: looking for more people to take it for a spin and provide feedback.
+
+The APIs should be stable; I'll provide a migration document in case breaking changes happen in future releases.
 
 ## Library non-goals
 
@@ -46,8 +56,9 @@ Main differences are:
 - No JWT manipulation of any kind (you can only decrypt/verify them)
 - Simpler internal structure reliant on more recent [lua-resty-openssl](https://github.com/fffonion/lua-resty-openssl) and OpenSSL versions.
 - Supports different JWE algorithms (see tables above).
+- Automatic JWT verification given JWKS HTTP endpoint.
 
-If any of the points above are a problem, or you need compatibility with older OpenResty version, I
+If any of the points above are a problem, or you need compatibility with older OpenResty versions, I
 recommend sticking with [lua-resty-jwt](https://github.com/cdbattags/lua-resty-jwt/).
 
 ## Supported features
@@ -58,7 +69,9 @@ recommend sticking with [lua-resty-jwt](https://github.com/cdbattags/lua-resty-j
   - PEM
   - DER
   - JWK
-- JWT claim validation.
+- JWT claims validation.
+- Automatic JWKS fetching and JWT validation.
+  - optional caching strategies.
 
 ### JWS Verification
 
@@ -67,7 +80,7 @@ recommend sticking with [lua-resty-jwt](https://github.com/cdbattags/lua-resty-j
 |   alg    | :white_check_mark: |
 |   jku    |        :x:         |
 |   jwk    |        :x:         |
-|   kid    |        :x:         |
+|   kid    | :white_check_mark: |
 |   x5u    |        :x:         |
 |   x5c    |        :x:         |
 |   x5t    |        :x:         |
@@ -101,7 +114,7 @@ recommend sticking with [lua-resty-jwt](https://github.com/cdbattags/lua-resty-j
 |   zip    |        :x:         |
 |   jku    |        :x:         |
 |   jwk    |        :x:         |
-|   kid    |        :x:         |
+|   kid    | :white_check_mark: |
 |   x5u    |        :x:         |
 |   x5c    |        :x:         |
 |   x5t    |        :x:         |
@@ -110,22 +123,28 @@ recommend sticking with [lua-resty-jwt](https://github.com/cdbattags/lua-resty-j
 |   cty    |        :x:         |
 |   crit   | :white_check_mark: |
 
-|        Alg         |     Implemented     | Requirements |
-|:------------------:|:-------------------:|:------------:|
-|       RSA1_5       |         :x:         |              |
-|      RSA-OAEP      |         :x:         |              |
-|    RSA-OAEP-256    |         :x:         |              |
-|       A128KW       | :white_check_mark:  | OpenSSL 3.0+ |
-|       A192KW       | :white_check_mark:  | OpenSSL 3.0+ |
-|       A256KW       | :white_check_mark:  | OpenSSL 3.0+ |
-|        dir         | :white_check_mark:  |              |
-|      ECDH-ES       |         :x:         |              |
-|     A128GCMKW      |         :x:         |              |
-|     A192GCMKW      |         :x:         |              |
-|     A256GCMKW      |         :x:         |              |
-| PBES2-HS256+A128KW |         :x:         |              |
-| PBES2-HS384+A192KW |         :x:         |              |
-| PBES2-HS512+A256KW |         :x:         |              |
+|        Alg         |     Implemented     | Requirements  |
+|:------------------:|:-------------------:|:-------------:|
+|       RSA1_5       |         :x:         |               |
+|      RSA-OAEP      |         :x:         |               |
+|    RSA-OAEP-256    |         :x:         |               |
+|       A128KW       | :white_check_mark:  | *OpenSSL 3.0+ |
+|       A192KW       | :white_check_mark:  | *OpenSSL 3.0+ |
+|       A256KW       | :white_check_mark:  | *OpenSSL 3.0+ |
+|        dir         | :white_check_mark:  |               |
+|      ECDH-ES       |         :x:         |               |
+|     A128GCMKW      |         :x:         |               |
+|     A192GCMKW      |         :x:         |               |
+|     A256GCMKW      |         :x:         |               |
+| PBES2-HS256+A128KW |         :x:         |               |
+| PBES2-HS384+A192KW |         :x:         |               |
+| PBES2-HS512+A256KW |         :x:         |               |
+
+> *The first official release of OpenResty including OpenSSL 3.0+ is [OpenResty 1.27.1.1](https://openresty.org/en/ann-1027001001.html)
+> which shipped with OpenSSL 3.0.15 (Yes, the [godawful slow OpenSSL 3.0 series...](https://github.com/openssl/openssl/issues/17064)).
+>
+> So, please, go with [OpenResty 1.27.1.2](https://openresty.org/en/ann-1027001002.html) as a minimum, which shipped
+> with OpenSSL 3.4.1.
 
 |      Enc      |    Implemented     |
 |:-------------:|:------------------:|
@@ -136,14 +155,21 @@ recommend sticking with [lua-resty-jwt](https://github.com/cdbattags/lua-resty-j
 |    A192GCM    | :white_check_mark: |
 |    A256GCM    | :white_check_mark: |
 
-## Missing features
+## JWKS retrieval cache strategies
 
+|   Cache Strategy    |    Implemented     |
+|:-------------------:|:------------------:|
+|      no cache       | :white_check_mark: |
+| local (shared_dict) | :white_check_mark: |
+|        redis        |        :x:         |
+
+## Planned missing features
+
+This is a list of missing features I'd like to implement when given enough time:
 - Implement JWE validation with at least 1 asymmetric `alg`.
 - Nested JWT (i.e. JWT in JWE).
-- JWKS workflow:
-    - Key retrieval via HTTP with [lua-resty-http](https://github.com/ledgetech/lua-resty-http).
-    - Automatic and configurable keys rotation.
-    - Investigate keys caching (?).
+- JWKS Redis cache strategy.
+- Automatic JWKS validation for JWE.
 
 ## Dependencies
 
@@ -153,7 +179,7 @@ luarocks install lua-resty-openssl
 luarocks install lua-resty-http
 ```
 
-## JWT Verification Usage
+## JWT verification usage
 
 ### jwt.decode_header_unsafe
 
@@ -339,6 +365,106 @@ end
 print(decoded_token.header.alg) -- A128KW
 print(decoded_token.header.enc) -- A128CBC-HS256
 print(decoded_token.payload.foo) -- bar
+```
+
+## JWKS verification usage
+
+The `resty.jwt-verification-jwks` module implements automatic JWKS retrieval from an HTTP endpoint and subsequent JWT
+validation with fetched keys.
+
+The `resty.jwt-verification-jwks-cache-*` modules implement optional JWKS caching strategies. Only one caching strategy
+can be enabled at a time; if none are enabled, the JWKS endpoint will be called once for every JWT to validate.
+
+### jwks.enable_cache_strategy_local
+
+**syntax**: *ok, err = jwks.enable_cache_strategy_local()*
+
+Enables the JWKS cache strategy using the OpenResty built-in [shared memory dictionaries](https://openresty-reference.readthedocs.io/en/latest/Lua_Nginx_API/#ngxshareddict).
+
+This works on a per OpenResty instance and does not perform any network call on cache hit.
+
+```lua
+local jwks = require("resty.jwt-verification-jwks")
+
+local ok, err = jwks.enable_cache_strategy_local()
+if not ok then
+    ngx.say("Error enable cache strategy: ", err)
+end
+```
+
+### jwks.set_http_timeouts_ms
+
+**syntax**: *jwks.set_http_timeouts_ms(connect, send, read)*
+
+Set HTTP client timeouts in milliseconds used for fetching JWKS.
+
+```lua
+local jwks = require("resty.jwt-verification-jwks")
+
+jwks.enable_cache_strategy_local(5000, 5000, 5000)
+```
+
+### jwks.set_http_ssl_verify
+
+**syntax**: *jwks.set_http_ssl_verify(enabled)*
+
+Enable/disable TLS verification used by HTTP client for fetching JWKS.
+
+By default, all TLS certificates are verified. If the JWKS endpoint is using self-signed certificates, either add
+the respective root CA to the OS certs store or disable certificates verification with this endpoint (it's unsafe).
+
+```lua
+local jwks = require("resty.jwt-verification-jwks")
+
+jwks.set_http_ssl_verify(false)
+```
+
+### jwks.fetch_jwks
+
+**syntax**: *payload, err = jwks.fetch_jwks(endpoint)*
+
+Manually fetch JWKS from HTTP endpoint; the returned payload, in case of success, is the HTTP response body as string:
+No check is performed whatsoever whether the payload contains JWKS or something else.
+
+If a caching strategy has been enabled, the endpoint will try to fetch it from the cache first. After a cache miss and
+successful JWKS retrieval via HTTP, the cache will be updated with the result.
+
+```lua
+local jwks = require("resty.jwt-verification-jwks")
+
+payload, err = jwks.fetch_jwks("https://www.googleapis.com/oauth2/v3/certs")
+if payload == nil then
+    print("failed fetching JWKS: ", err)
+    return
+end
+print(payload) -- '{"keys":[{"alg":"RS256","e":"AQAB","kid":"882503a5fd56e9f734dfba5c50d7bf48db284ae9","kty":"RSA","n":"woRUr445_ODXrFeynz5L208aJkABOKQHEzbfGM_V1ijkYZWZKY0PXKPP_wRKcE4C6OyjDNd5gHh3dF5QsVhVDZCfR9QjTf94o4asngrHzdOcfQ0pZIvzu_vzaVG82VGLM-2rKQp8uz06A6TbUzbIv9wQ8wQpYDIdujNkLqL22Mkb2drPxm9Y9I05PmVdkkvAbu4Q_KRJWxykOigHp-hVBmpYS2P3xuX56gM7ZRcXXJKKUfrGel4nDhSIAAD1wBNcVVgKbb0TYfZmVpRSCji_b6JHjqYhYjUasdotYJzWl7quAFsN_X_4j-cHZ30OS81j--OiIxWpL11y1kcbE0u-Dw","use":"sig"},{"n":"m7GlcF1ExRB4braT7sDnZvlY3wpqX9krkVRqcVA-m43FWFYBtuSpd-lc0EV8R8TO180y0tSgJc7hviI1IBJQlNa7XkjVGhY0ZFUp5rTpC45QbA9Smo4CLa5HQIf-69rkkovjFNMuDQvNiYCgRPLyRjmQbN2uHl4fU3hhf5qFqKTKo7eLCZiEMjrOkTXziA7xJJigUGe-ab8U-AXNH1fnCbejzHEIxL0eUG_4r4xddImOxETDO5T65AQCeqs7vtYos2xq5SLFuaUsithRQ-IMm3OlcVhMjBYt6uvGS6IdMjKon4wThCxEqAEXg0nahiGjnQCW176SNF152__TOjQVwQ","alg":"RS256","kty":"RSA","use":"sig","kid":"8e8fc8e556f7a76d08d35829d6f90ae2e12cfd0d","e":"AQAB"}]}'
+```
+
+### jwks.verify_jwt_with_jwks
+
+**syntax**: *jwt, err = jwks.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)*
+
+Given a jwt_token as a string, verify its signature with JWKS provided by the HTTP service found at jwks_endpoint.
+
+On success, the decrypted/verified JWT is returned as a lua table, otherwise nil and an error are returned.
+
+The optional parameter `jwt_options` can be passed to configure the token validator when calling [jwt.verify](#jwtverify)
+after having successfully fetched the JWKS. See [jwt.verify](#jwtverify) respective docs for more info about which options
+can be passed.
+
+> **Note**: As of this document, It's possible to verify any JWS using this method but no JWE: It's in the planned
+> features to implement section.
+
+```lua
+local jwks = require("resty.jwt-verification-jwks")
+
+jwt, err = jwks.verify_jwt_with_jwks("<MY_JWT>", "http://myservice:8888/.well-known/jwks.json", nil)
+if jwt == nil then
+    print("failed verifying jwt: ", err)
+    return
+end
+print(jwt.header.alg)
+print(tostring(jwt.payload))
 ```
 
 ## RFCs used as reference

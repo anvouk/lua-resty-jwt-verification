@@ -8,6 +8,7 @@ JWT verification library for OpenResty.
 - [Status](#status)
 - [Library non-goals](#library-non-goals)
 - [Differences from lua-resty-jwt](#differences-from-lua-resty-jwt)
+- [Types](#types)
 - [Supported features](#supported-features)
   - [JWS Verification](#jws-verification)
   - [JWE Decryption](#jwe-decryption)
@@ -60,6 +61,16 @@ Main differences are:
 
 If any of the points above are a problem, or you need compatibility with older OpenResty versions, I
 recommend sticking with [lua-resty-jwt](https://github.com/cdbattags/lua-resty-jwt/).
+
+## Types
+
+Types and null checks are provided with extensive use of [EmmyLua annotations](https://luals.github.io/wiki/annotations).
+
+IDEs plugin integrations for EmmyLua:
+- [Idea](https://github.com/EmmyLua/Intellij-EmmyLua2)
+- [VSCode](https://github.com/EmmyLua/VSCode-EmmyLua)
+
+The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 
 ## Supported features
 

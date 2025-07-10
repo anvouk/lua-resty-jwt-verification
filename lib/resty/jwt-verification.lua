@@ -8,6 +8,12 @@ local table_isarray = require("table.isarray")
 
 local _M = { _VERSION = "0.2.0" }
 
+---@alias JwtHeader { alg: string, enc: string|nil, crit: string|table|nil, cty: string|nil }
+---@alias JwtResult { header: JwtHeader, payload: table }
+
+---@alias ShaMdAlg "sha256"|"sha384"|"sha512" supported sha types.
+---@class (exact) MdAlgTable
+---@field [string] ShaMdAlg
 local md_alg_table = {
     ["HS256"] = "sha256",
     ["RS256"] = "sha256",
@@ -23,7 +29,10 @@ local md_alg_table = {
     ["PS512"] = "sha512",
 }
 
-local decrypt_alg_table = {
+---@alias KeywrapAlgInfo { aes: string, enc_key_len: integer }
+---@class (exact) KeywrapAlgTable
+---@field [string] KeywrapAlgInfo
+local keywrap_alg_table = {
     ["A128KW"] = {
         aes = "aes128-wrap",
         enc_key_len = 16,
@@ -36,6 +45,12 @@ local decrypt_alg_table = {
         aes = "aes256-wrap",
         enc_key_len = 32,
     },
+}
+
+---@alias DecryptAlgInfo { aes: boolean, hmac: ShaMdAlg|nil, mac_key_len: integer, enc_key_len: integer }
+---@class (exact) DecryptAlgTable
+---@field [string] DecryptAlgInfo
+local decrypt_alg_table = {
     ["A128CBC-HS256"] = {
         aes = "aes-128-cbc",
         hmac = "sha256",
@@ -79,6 +94,22 @@ local crit_supported_claims_table = {
     ["typ"]="typ",
 }
 
+---@class (exact) JwtVerifyOptions Configure how a JWT will be verified.
+---@field valid_signing_algorithms table<string, string> valid algs list. Verification will fail if JWT `alg` is
+---not present in this list.
+---@field typ string|nil JWT `typ` claim to verify. If nil, no check will be perfomed on this claim.
+---@field issuer string|nil JWT `issuer` claim to verify. If nil, no check will be perfomed on this claim.
+---@field audiences [string]|nil JWT `aud` claim to verify. If nil, no check will be perfomed on this claim.
+---@field subject string|nil JWT `sub` claim to verify. If nil, no check will be perfomed on this claim.
+---@field jwtid string|nil JWT `jti` claim to verify. If nil, no check will be perfomed on this claim.
+---@field ignore_not_before boolean|nil If true, ignores the JWT claim `nbf` if present. This is a critical
+---option, leave nil unless you know what you are doing.
+---@field ignore_expiration boolean|nil If true, ignores the JWT claim `exp` if present. This is a critical
+---option, leave nil unless you know what you are doing.
+---@field current_unix_timestamp integer|nil Allows overriding the current date as a unix epoch timestamp if set. If
+---nil, will default to calling `ngx.time()` on every JWT to verify.
+---@field timestamp_skew_seconds integer Allows a margin in seconds in which the JWT can still be successfully
+---verified after it already expired. Set to 0 to disable.
 local verify_default_options = {
     valid_signing_algorithms = {
         ["HS256"]="HS256", ["HS384"]="HS384", ["HS512"]="HS512",
@@ -97,6 +128,24 @@ local verify_default_options = {
     timestamp_skew_seconds = 1,
 }
 
+---@class (exact) JwtDecryptOptions Configure how a JWE will be decrypted.
+---@field valid_encryption_alg_algorithms table<string, string> valid algs list. Decryption will fail if JWT `alg` claim
+---is not present in this list.
+---@field valid_encryption_enc_algorithms table<string, string> valid algs list. Decryption will fail if JWT `enc` claim
+---is not present in this list.
+---@field typ string|nil JWT `typ` claim to verify. If nil, no check will be perfomed on this claim.
+---@field issuer string|nil JWT `issuer` claim to verify. If nil, no check will be perfomed on this claim.
+---@field audiences [string]|nil JWT `aud` claim to verify. If nil, no check will be perfomed on this claim.
+---@field subject string|nil JWT `sub` claim to verify. If nil, no check will be perfomed on this claim.
+---@field jwtid string|nil JWT `jti` claim to verify. If nil, no check will be perfomed on this claim.
+---@field ignore_not_before boolean|nil If true, ignores the JWT claim `nbf` if present. This is a critical
+---option, leave nil unless you know what you are doing.
+---@field ignore_expiration boolean|nil If true, ignores the JWT claim `exp` if present. This is a critical
+---option, leave nil unless you know what you are doing.
+---@field current_unix_timestamp integer|nil Allows overriding the current date as a unix epoch timestamp if set. If
+---nil, will default to calling `ngx.time()` on every JWT to verify.
+---@field timestamp_skew_seconds integer Allows a margin in seconds in which the JWT can still be successfully
+---verified after it already expired. Set to 0 to disable.
 local decrypt_default_options = {
     valid_encryption_alg_algorithms = {
         ["A128KW"]="A128KW", ["A192KW"]="A192KW", ["A256KW"]="A256KW",
@@ -121,9 +170,10 @@ local decrypt_default_options = {
     timestamp_skew_seconds = 1,
 }
 
----decode_base64_segment_to_string Decode an encoded string in base64.
+---Decode an encoded string in base64.
 ---@param base64_str string base64 encoded string.
----@return string, string Parsed string or error string.
+---@return string|nil #Parsed string on success.
+---@return string|nil err nil on success, error message otherwise.
 local function decode_base64_segment_to_string(base64_str)
     local decoded_header = b64.decode_base64url(base64_str)
     if decoded_header == nil then
@@ -132,9 +182,10 @@ local function decode_base64_segment_to_string(base64_str)
     return decoded_header
 end
 
----decode_base64_segment_to_table Decode a json encoded in base64 and return it as lua table.
+---Decode a json encoded in base64 and return it as lua table.
 ---@param base64_str string base64 encoded json string.
----@return table, string Parsed content or error string.
+---@return table|nil #Parsed content on success.
+---@return string|nil err nil on success, error message otherwise.
 local function decode_base64_segment_to_table(base64_str)
     local decoded_string, err = decode_base64_segment_to_string(base64_str)
     if decoded_string == nil then
@@ -143,9 +194,10 @@ local function decode_base64_segment_to_table(base64_str)
     return cjson.decode(decoded_string)
 end
 
----decode_header_unsafe Parse and decode a jwt header to a lua table. The header IS NOT validated in any way.
+---Parse and decode a jwt header to a lua table. The header IS NOT validated in any way.
 ---@param jwt_token string Full jwt token as base64 encoded string.
----@return table, string Jwt header content as lua table or error string.
+---@return table|nil #Jwt header content as lua table on success
+---@return string|nil err nil on success, error message otherwise.
 function _M.decode_header_unsafe(jwt_token)
     local dotpos = string.find(jwt_token, ".", 0, true)
     if dotpos == nil then
@@ -154,9 +206,9 @@ function _M.decode_header_unsafe(jwt_token)
     return decode_base64_segment_to_table(string.sub(jwt_token, 1, dotpos - 1))
 end
 
----split_jwt_sections Split a jwt string into its 3 subcomponents.
+---Split a jwt string into its 3 subcomponents.
 ---@param jwt_token string Encoded jwt string.
----@return table Array containing jwt sections still base64 encoded.
+---@return table #Array containing jwt sections still base64 encoded.
 local function split_jwt_sections(jwt_token)
     local t = {}
     local begin_pos = 1
@@ -174,11 +226,12 @@ local function split_jwt_sections(jwt_token)
     return t
 end
 
----hmac_sign Generate a signature with hmac for given message and secret.
+---Generate a signature with hmac for given message and secret.
 ---@param message string Message to sign.
 ---@param secret string Secret to use for signing message.
----@param md_alg string Either sha256, sha384 or sha512.
----@return string, string Signature or error string.
+---@param md_alg ShaMdAlg Either sha256, sha384 or sha512.
+---@return string|nil signature Hashed data on success.
+---@return string|nil err nil on success, error message otherwise.
 local function hmac_sign(message, secret, md_alg)
     local hmac_instance = hmac.new(secret, md_alg)
     if hmac_instance == nil then
@@ -188,12 +241,13 @@ local function hmac_sign(message, secret, md_alg)
     return hmac_instance:final(message)
 end
 
----rsa_verify Verify an existing signature for a message with RSA.
+---Verify an existing signature for a message with RSA.
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
----@param md_alg string Either sha256, sha384 or sha512.
----@return boolean, string Whether the signature is valid or error string.
+---@param md_alg ShaMdAlg Either sha256, sha384 or sha512.
+---@return boolean|nil #Whether the signature is valid.
+---@return string|nil err nil on success, error message otherwise.
 local function rsa_verify(message, signature, public_key_str, md_alg)
     local pk, err = pkey.new(public_key_str, {
         format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
@@ -205,12 +259,13 @@ local function rsa_verify(message, signature, public_key_str, md_alg)
     return pk:verify(signature, message, md_alg)
 end
 
----ecdsa_verify Verify an existing signature for a message with ECDSA.
+---Verify an existing signature for a message with ECDSA.
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
----@param md_alg string Either sha256, sha384 or sha512.
----@return boolean, string Whether the signature is valid or error string.
+---@param md_alg ShaMdAlg Either sha256, sha384 or sha512.
+---@return boolean|nil #Whether the signature is valid.
+---@return string|nil err nil on success, error message otherwise.
 local function ecdsa_verify(message, signature, public_key_str, md_alg)
     local pk, err = pkey.new(public_key_str, {
         format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
@@ -222,13 +277,14 @@ local function ecdsa_verify(message, signature, public_key_str, md_alg)
     return pk:verify(signature, message, md_alg, nil, { ecdsa_use_raw = true })
 end
 
----rsa_pss_verify Verify an existing signature for a message with RSA-PSS.
+---Verify an existing signature for a message with RSA-PSS.
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
----@param alg string Jwt PS family alg.
----@return boolean, string Whether the signature is valid or error string.
-local function rsa_pss_verify(message, signature, public_key_str, alg)
+---@param md_alg ShaMdAlg Either sha256, sha384 or sha512.
+---@return boolean|nil #Whether the signature is valid.
+---@return string|nil err nil on success, error message otherwise.
+local function rsa_pss_verify(message, signature, public_key_str, md_alg)
     local pk, err = pkey.new(public_key_str, {
         format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
     })
@@ -236,13 +292,13 @@ local function rsa_pss_verify(message, signature, public_key_str, alg)
         return nil, "failed initializing openssl with public key: " .. err
     end
 
-    return pk:verify(signature, message, alg, pkey.PADDINGS.RSA_PKCS1_PSS_PADDING)
+    return pk:verify(signature, message, md_alg, pkey.PADDINGS.RSA_PKCS1_PSS_PADDING)
 end
 
----verify_jwt_audiences Verify jwt aud claims against a list of valid audiences.
+---Verify jwt aud claims against a list of valid audiences.
 ---@param jwt_audiences table Jwt audiences array.
 ---@param options_audiences table Valid audiences array.
----@return boolean True if at least an audience matches one found in the aud jwt claim.
+---@return boolean #true if at least an audience matches one found in the aud jwt claim.
 local function verify_jwt_audiences(jwt_audiences, options_audiences)
     for _, jwt_aud in ipairs(jwt_audiences) do
         for _, opt_aud in ipairs(options_audiences) do
@@ -254,9 +310,10 @@ local function verify_jwt_audiences(jwt_audiences, options_audiences)
     return false
 end
 
----verify_claim_crit Verifies crit calim as per jwt RFC.
+---Verifies crit calim as per jwt RFC.
 ---@param crit_claims table Jwt crit claim array.
----@return boolean, string true if jwt crit claim is successfully verified, nil and error string otherwise.
+---@return boolean|nil #true if jwt crit claim is successfully verified
+---@return string|nil err nil on success, error message otherwise.
 local function verify_claim_crit(crit_claims)
     if type(crit_claims) ~= "table" then
         return nil, "jwt validation failed: crit claim is not an array"
@@ -277,11 +334,12 @@ local function verify_claim_crit(crit_claims)
     return true
 end
 
----verify_claims Check already verified or decrypted jwt against user validation options.
+---Check already verified or decrypted jwt against user validation options.
 ---@param jwt_header table Verified jwt header as table.
 ---@param jwt_payload table Verified or decrypted jwt payload as table (or string if jwe is not containing a jwt).
 ---@param options table User defined or default jwt validation options to check.
----@return boolean, string true if jwt claims verification succeeded, nil and error string otherwise.
+---@return boolean|nil #true if jwt claims verification succeeded
+---@return string|nil err nil on success, error message otherwise.
 local function verify_claims(jwt_header, jwt_payload, options)
     if options.typ ~= nil then
         if jwt_header.typ ~= options.typ then
@@ -340,11 +398,12 @@ local function verify_claims(jwt_header, jwt_payload, options)
     return true
 end
 
----verify Verify jwt token and its claims.
+---Verify jwt token and its claims.
 ---@param jwt_token string Raw jwt token.
 ---@param secret string Secret for symmetric signature or public key in either PEM, DER or JWK format.
----@param options table Configuration used to verify the jwt.
----@return table, string Parsed jwt if valid, nil and error string otherwise.
+---@param options JwtVerifyOptions|nil Configuration used to verify the jwt (optional).
+---@return JwtResult|nil #Parsed jwt if valid, nil and error string otherwise.
+---@return string|nil err nil on success, error message otherwise.
 function _M.verify(jwt_token, secret, options)
     if jwt_token == nil or secret == nil then
         return nil, "invalid configuration: both jwt token and a secret are required"
@@ -470,10 +529,12 @@ function _M.verify(jwt_token, secret, options)
     }
 end
 
----derive_cek_alg_dir Extract CEK for content decryption and mac key for authentication.
----@param enc_info table CEK encryption 'enc' parameters used for key extraction.
+---Extract CEK for content decryption and mac key for authentication.
+---@param enc_info DecryptAlgInfo CEK encryption 'enc' parameters used for key extraction.
 ---@param secret string CEK decryption secret.
----@return string, string, string CEK and mac key on success, nil nil and error message otherwise.
+---@return string|nil cek CEK on success, nil otherwise.
+---@return string|nil mac_key MAC key on success, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 local function derive_keys_alg_dir(enc_info, secret)
     if enc_info == nil then
         return nil, nil, "unsupported enc in cek calculation"
@@ -489,12 +550,13 @@ local function derive_keys_alg_dir(enc_info, secret)
     return cek, mac_key
 end
 
----derive_cek_alg_aes_kw Extract Content Encryption Key (CEK) necessary for later payload decryption
+---Extract Content Encryption Key (CEK) necessary for later payload decryption
 ---using AES KW family algs.
----@param enc_info table CEK encryption 'alg' parameters used for key extraction.
+---@param enc_info KeywrapAlgInfo CEK encryption 'alg' parameters used for key extraction.
 ---@param secret string CEK decryption secret.
 ---@param encrypted_key string Encrypted CEK embedded in the jwt but already base64 decoded.
----@return string, string CEK on success, nil and error message otherwise.
+---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 local function derive_cek_alg_aes_kw(enc_info, secret, encrypted_key)
     if enc_info == nil then
         return nil, "unsupported enc in cek calculation"
@@ -516,14 +578,15 @@ local function derive_cek_alg_aes_kw(enc_info, secret, encrypted_key)
     return decrypted_cek
 end
 
----binlen 64-bit big-endian representation of string length.
+---64-bit big-endian representation of string length.
 ---See https://datatracker.ietf.org/doc/html/rfc7516#appendix-B.3
 ---Note: this function has been ported from lua-resty-jwt
----@param s string Data
----@return number Length of data
+---@param s string Data.
+---@return string #Length of data as string.
 local function binlen(s)
     local len = 8 * #s
 
+    ---@diagnostic disable-next-line: param-type-not-match
     return string.char(len / 0x0100000000000000 % 0x100)
         .. string.char(len / 0x0001000000000000 % 0x100)
         .. string.char(len / 0x0000010000000000 % 0x100)
@@ -534,7 +597,7 @@ local function binlen(s)
         .. string.char(len / 0x0000000000000001 % 0x100)
 end
 
----decrypt_content_cbc Decrypt payload using AES-CBC family algs and verify given AEAD tag.
+---Decrypt payload using AES-CBC family algs and verify given AEAD tag.
 ---@param enc_info table Decryption algorithm's specific settings.
 ---@param cek string CEK used for ciphertext decryption.
 ---@param mac_key string used for ciphertext authentication.
@@ -542,7 +605,8 @@ end
 ---@param iv string Initialization Vector used during decryption.
 ---@param aead_aad string AEAD tag to verify.
 ---@param aead_tag string AEAD computed tag to verify against.
----@return string, string Decrypted payload on success, false on invalid cek, nil and error string otherwise.
+---@return string|boolean|nil #Decrypted payload on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 local function decrypt_content_cbc(enc_info, cek, mac_key, ciphertext, iv, aead_aad, aead_tag)
     local c, err = cipher.new(enc_info.aes)
     if c == nil then
@@ -577,7 +641,8 @@ end
 ---@param iv string Initialization Vector used during decryption.
 ---@param aead_aad string AEAD tag to verify.
 ---@param aead_tag string AEAD computed tag to verify against.
----@return string, string Decrypted payload on success, false on invalid cek, nil and error string otherwise.
+---@return string|boolean|nil #Decrypted payload on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 local function decrypt_content_gcm(enc_info, cek, ciphertext, iv, aead_aad, aead_tag)
     local c, err = cipher.new(enc_info.aes)
     if c == nil then
@@ -592,6 +657,12 @@ local function decrypt_content_gcm(enc_info, cek, ciphertext, iv, aead_aad, aead
     return decrypted_payload
 end
 
+---Decrypt a JWT token and verify its claims.
+---@param jwt_token string Raw JWT token in JWE format.
+---@param secret string Secret key for decryption, depending on the algorithm.
+---@param options JwtDecryptOptions|nil Configuration options for decryption (optional).
+---@return JwtResult|nil #Decrypted JWT with header and payload on valid JWT, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 function _M.decrypt(jwt_token, secret, options)
     if jwt_token == nil or secret == nil then
         return nil, "invalid configuration: both jwt token and a secret are required"
@@ -691,12 +762,13 @@ function _M.decrypt(jwt_token, secret, options)
     if jwt_header.alg == "dir" then
         cek, mac_key, err = derive_keys_alg_dir(decrypt_alg_table[jwt_header.enc], secret)
     elseif jwt_header.alg == "A128KW" or jwt_header.alg == "A192KW" or jwt_header.alg == "A256KW" then
-        cek, err = derive_cek_alg_aes_kw(decrypt_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
+        cek, err = derive_cek_alg_aes_kw(keywrap_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
         if cek == nil then
             return nil, "invalid jwt: " .. err
         elseif not cek then
             return nil, "invalid jwt: failed decrypting cek"
         end
+        ---@cast cek string
         cek, mac_key, err = derive_keys_alg_dir(decrypt_alg_table[jwt_header.enc], cek)
     else
         return nil, "unknown or unsupported jwt alg: " .. jwt_header.alg
@@ -739,6 +811,7 @@ function _M.decrypt(jwt_token, secret, options)
 
     -- jwt verify claims --
 
+    ---@type table, string|nil
     decrypted_payload, err = cjson.decode(decrypted_payload);
     if decrypted_payload == nil then
         return nil, "invalid jwt: failed reading decrypted payload: " .. err

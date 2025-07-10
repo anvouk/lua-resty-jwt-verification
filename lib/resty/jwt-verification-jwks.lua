@@ -17,26 +17,27 @@ local jwks_options = {
     }
 }
 
----cache_get Get cached entry string for key.
+---Get cached entry string for key.
 ---If no cache strategy is set, the cache mechanism will be disabled and this
 ---function will always return a cache miss.
 ---@param key string Cache key.
----@return string Return cached result as string if present, nil otherwise.
+---@return string|nil #Cached result as string if present, nil otherwise.
 local function cache_get(key)
-    if jwks_options.cache.setex == nil then
+    if jwks_options.cache.get == nil then
         -- cache is disabled, return nothing.
         return nil
     end
     return jwks_options.cache.get(jwks_options.cache.prefix .. key)
 end
 
----cache_setex Cache data under key until expiry.
+---Cache data under key until expiry.
 ---If no cache strategy is set, the cache mechanism will be disabled and this
 ---function will always return success and do nothing.
 ---@param key string Cache key.
 ---@param value string Cache value.
 ---@param expiry number Cache entry expiry in seconds.
----@return boolean, string Return true on success, nil and error message otherwise.
+---@return boolean|nil #true on success, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 local function cache_setex(key, value, expiry)
     if jwks_options.cache.setex == nil then
         -- cache is disabled, do nothing.
@@ -45,7 +46,7 @@ local function cache_setex(key, value, expiry)
     return jwks_options.cache.setex(jwks_options.cache.prefix .. key, value, expiry)
 end
 
----enable_cache_strategy_local Set jwks cache strategy to local.
+---Set jwks cache strategy to local.
 ---This cache strategy uses openresty `ngx.shared` dict under the hood for immediate keys lookup from memory. To keep things
 ---simple here, a failed jwt validation, with a stale jwk found in cache, *WILL NOT* cascade into a cache refresh. Either
 ---reduce the default ttl by changing the config `default_exp_secs` or implement yourself the cache invalidation procedure: this
@@ -55,7 +56,8 @@ end
 ---This would also have the advantage of sharing the same cache amongst multiple openresty instances.
 ---Note: remember to define the shared dict `lua_shared_dict resty_jwt_verification_cache_jwks 10m;` at openresty startup.
 ---Items are shared among all the nginx instance workers.
----@return boolean, string Returns true on success, nil and error message otherwise.
+---@return boolean|nil #true on success, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 function _M.enable_cache_strategy_local()
     if jwks_options.cache.get ~= nil or jwks_options.cache.setex ~= nil then
         return nil, "jwks cache has already been initialized"
@@ -67,7 +69,7 @@ function _M.enable_cache_strategy_local()
     return true
 end
 
----set_http_timeouts_ms Set jwks HTTP client timeouts.
+---Set jwks HTTP client timeouts.
 ---See resty.http docs for more info.
 ---@param connect number HTTP connection timeout in ms.
 ---@param send number HTTP send timeout in ms.
@@ -76,18 +78,19 @@ function _M.set_http_timeouts_ms(connect, send, read)
     httpc:set_timeouts(connect, send, read)
 end
 
----set_http_ssl_verify Enable or disable TLS certs verification.
+---Enable or disable TLS certs verification.
 ---Note: by default, all HTTPS certs are verified.
----@param enabled boolean Enable or disable.
+---@param enabled boolean Enable or disable functionality.
 function _M.set_http_ssl_verify(enabled)
     jwks_options.http_client.ssl_verify = enabled
 end
 
----fetch_jwks Manually fetch the jwks from an endpoint. Cache strategy is applied if enabled.
+---Manually fetch the jwks from an endpoint. Cache strategy is applied if enabled.
 ---If you're simply looking to validate a jwt with the retrieved keys, consider using the `verify_jwt_with_jwks` method.
 ---Note: a cache failure will not trigger an error but will cause the HTTP request instead.
 ---@param endpoint string HTTP endpoint returning keys (generally ending with '/.well-known/jwks.json').
----@return string, string Return jwks as string when successfully fetched, nil and error message otherwise.
+---@return string|nil #jwks as string when successfully fetched, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 function _M.fetch_jwks(endpoint)
     if endpoint == nil then
         return nil, "param endpoint cannot be nil"
@@ -121,11 +124,12 @@ function _M.fetch_jwks(endpoint)
     return res.body
 end
 
----verify_jwt_with_jwks Verify an asymmetrically signed jwt using jwks from a remote HTTP endpoint.
+---Verify an asymmetrically signed jwt using jwks from a remote HTTP endpoint.
 ---@param jwt_token string Raw jwt token.
 ---@param jwks_endpoint string HTTP endpoint from where to fetch jwks.
----@param jwt_options table Configuration used to verify the jwt. See verify in resty.jwt-verification for more info.
----@return table, string Parsed jwt if valid, nil and error string otherwise.
+---@param jwt_options JwtVerifyOptions Configuration used to verify the jwt. See verify in resty.jwt-verification for more info.
+---@return JwtResult|nil #Parsed jwt if valid, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
 function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)
     if jwt_token == nil or jwks_endpoint == nil then
         return nil, "params jwt_token and jwks_endpoint cannot be nil"
@@ -146,6 +150,7 @@ function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)
     if jwks == nil then
         return nil, "failed verifying jwt: " .. err
     end
+    ---@type table|nil, string|nil
     jwks, err = cjson.decode(jwks)
     if not jwks then
         return nil, "failed verifying jwt: invalid json decoded: " .. err

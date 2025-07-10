@@ -1,6 +1,7 @@
 .idea
 .vscode
 t/servroot
+lua-resty-jwt-verification-*
 
 *~
 .fuse_hidden*

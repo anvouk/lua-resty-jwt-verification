@@ -1,6 +1,6 @@
 local cache_jwks = ngx.shared.resty_jwt_verification_cache_jwks
 
-local _M = { _VERSION = "0.2.0" }
+local _M = { _VERSION = "0.2.1" }
 
 ---Get cached entry string for key.
 ---@nodiscard

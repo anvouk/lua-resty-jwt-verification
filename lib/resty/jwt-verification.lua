@@ -6,7 +6,7 @@ local cipher = require("resty.openssl.cipher")
 local table_isempty = require("table.isempty")
 local table_isarray = require("table.isarray")
 
-local _M = { _VERSION = "0.2.0" }
+local _M = { _VERSION = "0.2.1" }
 
 ---@alias JwtHeader { alg: string, enc: string|nil, crit: string|table|nil, cty: string|nil }
 ---@alias JwtResult { header: JwtHeader, payload: table }

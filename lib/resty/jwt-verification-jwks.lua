@@ -3,7 +3,7 @@ local cjson = require("cjson.safe")
 local jwt = require("resty.jwt-verification")
 local table_isarray = require("table.isarray")
 
-local _M = { _VERSION = "0.2.0" }
+local _M = { _VERSION = "0.2.1" }
 
 local jwks_options = {
     cache = {

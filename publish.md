@@ -7,7 +7,7 @@ From: https://martin-fieber.de/blog/create-build-publish-modules-for-lua/
 3. Update .rockspec content with new version
 4. Update all `_VERSION` in folder `lib` with new version
 5. `luarocks install --local --deps-only lua-resty-jwt-verification-<VERSION>.rockspec`
-6. `luarocks make`
+6. `luarocks make --local`
 7. `luarocks lint lua-resty-jwt-verification-<VERSION>.rockspec`
 8. Commit version changes
 9. Create git tag for release: `git tag v<VERSION> && git push --tags`

@@ -24,7 +24,8 @@ __DATA__
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
-            local ok, err = jwks.enable_cache_strategy_local()
+            local jwks_cache_local = require "resty.jwt-verification-jwks-cache-local"
+            local ok, err = jwks.init(jwks_cache_local)
             ngx.say(ok)
             ngx.say(err)
             if not ok then
@@ -62,7 +63,8 @@ nil
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
-            local ok, err = jwks.enable_cache_strategy_local()
+            local jwks_cache_local = require "resty.jwt-verification-jwks-cache-local"
+            local ok, err = jwks.init(jwks_cache_local)
             ngx.say(ok)
             ngx.say(err)
             if not ok then
@@ -98,7 +100,8 @@ failed verifying jwt: token does not have kid header and this lib does not suppo
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
-            local ok, err = jwks.enable_cache_strategy_local()
+            local jwks_cache_local = require "resty.jwt-verification-jwks-cache-local"
+            local ok, err = jwks.init(jwks_cache_local)
             ngx.say(ok)
             ngx.say(err)
             if not ok then
@@ -134,7 +137,8 @@ failed verifying jwt: failed fetching jwks, returned unexpected http status: 404
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
-            local ok, err = jwks.enable_cache_strategy_local()
+            local jwks_cache_local = require "resty.jwt-verification-jwks-cache-local"
+            local ok, err = jwks.init(jwks_cache_local)
             ngx.say(ok)
             ngx.say(err)
             if not ok then
@@ -170,7 +174,8 @@ failed verifying jwt: invalid json decoded: Expected value but found T_END at ch
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
-            local ok, err = jwks.enable_cache_strategy_local()
+            local jwks_cache_local = require "resty.jwt-verification-jwks-cache-local"
+            local ok, err = jwks.init(jwks_cache_local)
             ngx.say(ok)
             ngx.say(err)
             if not ok then
@@ -206,7 +211,8 @@ failed verifying jwt: jwks invalid format: missing or invalid field 'keys'
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
-            local ok, err = jwks.enable_cache_strategy_local()
+            local jwks_cache_local = require "resty.jwt-verification-jwks-cache-local"
+            local ok, err = jwks.init(jwks_cache_local)
             ngx.say(ok)
             ngx.say(err)
             if not ok then

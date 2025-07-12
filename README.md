@@ -20,9 +20,10 @@ JWT verification library for OpenResty.
   - [jwt.verify](#jwtverify)
   - [jwt.decrypt](#jwtdecrypt)
 - [JWKS verification usage](#jwks-verification-usage)
-  - [jwks.enable_cache_strategy_local](#jwksenable_cache_strategy_local)
+  - [jwks.init](#jwksinit)
   - [jwks.set_http_timeouts_ms](#jwksset_http_timeouts_ms)
   - [jwks.set_http_ssl_verify](#jwksset_http_ssl_verify)
+  - [jwks.set_cache_ttl](#jwksset_cache_ttl)
   - [jwks.fetch_jwks](#jwksfetch_jwks)
   - [jwks.verify_jwt_with_jwks](#jwksverify_jwt_with_jwks)
 - [RFCs used as reference](#rfcs-used-as-reference)
@@ -386,20 +387,60 @@ validation with fetched keys.
 The `resty.jwt-verification-jwks-cache-*` modules implement optional JWKS caching strategies. Only one caching strategy
 can be enabled at a time; if none are enabled, the JWKS endpoint will be called once for every JWT to validate.
 
-### jwks.enable_cache_strategy_local
+### jwks.init
 
-**syntax**: *ok, err = jwks.enable_cache_strategy_local()*
+**syntax**: *ok, err = jwks.init(cache_strategy?)*
 
-Enables the JWKS cache strategy using the OpenResty built-in [shared memory dictionaries](https://openresty-reference.readthedocs.io/en/latest/Lua_Nginx_API/#ngxshareddict).
+Initialize the jwks module and optionally specify a caching strategy.
 
-This works on a per OpenResty instance and does not perform any network call on cache hit.
+This function must be called only once and preferably in the `init_by_lua_file` section.
 
 ```lua
 local jwks = require("resty.jwt-verification-jwks")
 
-local ok, err = jwks.enable_cache_strategy_local()
+-- initalize without cache
+local ok, err = jwks.init(nil)
 if not ok then
-    ngx.say("Error enable cache strategy: ", err)
+    ngx.say("Error initializing jwks module: ", err)
+end
+
+-- or ...
+
+-- initalize with local cache based on openresty shared mem dict.
+-- add this in the `http` section of your nginx config: `lua_shared_dict resty_jwt_verification_cache_jwks 10m;`
+-- see https://openresty-reference.readthedocs.io/en/latest/Lua_Nginx_API/#ngxshareddict
+local jwks_cache_local = require("resty.jwt-verification-jwks-cache-local")
+local ok, err = jwks.init(jwks_cache_local)
+if not ok then
+    ngx.say("Error initializing jwks module: ", err)
+end
+```
+
+You can implement your own cache and pass it in the init method instead. Here's an example how:
+
+```lua
+local my_cache = {}
+
+---Get cached entry string for key.
+---@param key string Cache key.
+---@return string|nil value Return cached result as string if present, nil otherwise.
+function my_cache.get(key)
+    -- TODO
+end
+
+---Cache data under key until expiry.
+---@param key string Cache key.
+---@param value string Cache value.
+---@param expiry integer Cache entry expiry in seconds.
+---@return boolean|nil ok true on success
+---@return string|nil err nil on success, error message otherwise.
+function my_cache.setex(key, value, expiry)
+    -- TODO
+end
+
+local ok, err = jwks.init(my_cache)
+if not ok then
+    ngx.say("Error initializing jwks module: ", err)
 end
 ```
 
@@ -430,6 +471,21 @@ local jwks = require("resty.jwt-verification-jwks")
 jwks.set_http_ssl_verify(false)
 ```
 
+### jwks.set_cache_ttl
+
+**syntax**: *jwks.set_http_ssl_verify(enabled)*
+
+Change the default cache TTL. Default value is 12 hours.
+
+> **Note**: The cache ttl can only be used when the jwks module has been initialized with a cache.
+> See [how to enable caching](#jwksinit).
+
+```lua
+local jwks = require("resty.jwt-verification-jwks")
+
+jwks.set_cache_ttl(2 * 3600) -- 2h
+```
+
 ### jwks.fetch_jwks
 
 **syntax**: *payload, err = jwks.fetch_jwks(endpoint)*
@@ -453,7 +509,7 @@ print(payload) -- '{"keys":[{"alg":"RS256","e":"AQAB","kid":"882503a5fd56e9f734d
 
 ### jwks.verify_jwt_with_jwks
 
-**syntax**: *jwt, err = jwks.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)*
+**syntax**: *jwt, err = jwks.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options?)*
 
 Given a jwt_token as a string, verify its signature with JWKS provided by the HTTP service found at jwks_endpoint.
 

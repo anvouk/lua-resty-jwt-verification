@@ -1,3 +1,3 @@
 std = 'ngx_lua'
 redefined = false
-unused_args = false
+max_line_length = 200

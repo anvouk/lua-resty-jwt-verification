@@ -11,9 +11,9 @@ local _M = { _VERSION = "0.2.1" }
 ---@alias JwtHeader { alg: string, enc: string|nil, crit: string|table|nil, cty: string|nil }
 ---@alias JwtResult { header: JwtHeader, payload: table }
 
----@alias ShaMdAlg "sha256"|"sha384"|"sha512" supported sha types.
----@class (exact) MdAlgTable
----@field [string] ShaMdAlg
+---@alias JwtShaMdAlg "sha256"|"sha384"|"sha512" supported sha types.
+---@class (exact) JwtMdAlgTable
+---@field [string] JwtShaMdAlg
 local md_alg_table = {
     ["HS256"] = "sha256",
     ["RS256"] = "sha256",
@@ -29,9 +29,9 @@ local md_alg_table = {
     ["PS512"] = "sha512",
 }
 
----@alias KeywrapAlgInfo { aes: string, enc_key_len: integer }
----@class (exact) KeywrapAlgTable
----@field [string] KeywrapAlgInfo
+---@alias JwtKeywrapAlgInfo { aes: string, enc_key_len: integer }
+---@class (exact) JwtKeywrapAlgTable
+---@field [string] JwtKeywrapAlgInfo
 local keywrap_alg_table = {
     ["A128KW"] = {
         aes = "aes128-wrap",
@@ -47,9 +47,9 @@ local keywrap_alg_table = {
     },
 }
 
----@alias DecryptAlgInfo { aes: boolean, hmac: ShaMdAlg|nil, mac_key_len: integer, enc_key_len: integer }
----@class (exact) DecryptAlgTable
----@field [string] DecryptAlgInfo
+---@alias JwtDecryptAlgInfo { aes: boolean, hmac: JwtShaMdAlg|nil, mac_key_len: integer, enc_key_len: integer }
+---@class (exact) JwtDecryptAlgTable
+---@field [string] JwtDecryptAlgInfo
 local decrypt_alg_table = {
     ["A128CBC-HS256"] = {
         aes = "aes-128-cbc",
@@ -229,7 +229,7 @@ end
 ---Generate a signature with hmac for given message and secret.
 ---@param message string Message to sign.
 ---@param secret string Secret to use for signing message.
----@param md_alg ShaMdAlg Either sha256, sha384 or sha512.
+---@param md_alg JwtShaMdAlg Either sha256, sha384 or sha512.
 ---@return string|nil signature Hashed data on success.
 ---@return string|nil err nil on success, error message otherwise.
 local function hmac_sign(message, secret, md_alg)
@@ -245,7 +245,7 @@ end
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
----@param md_alg ShaMdAlg Either sha256, sha384 or sha512.
+---@param md_alg JwtShaMdAlg Either sha256, sha384 or sha512.
 ---@return boolean|nil #Whether the signature is valid.
 ---@return string|nil err nil on success, error message otherwise.
 local function rsa_verify(message, signature, public_key_str, md_alg)
@@ -263,7 +263,7 @@ end
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
----@param md_alg ShaMdAlg Either sha256, sha384 or sha512.
+---@param md_alg JwtShaMdAlg Either sha256, sha384 or sha512.
 ---@return boolean|nil #Whether the signature is valid.
 ---@return string|nil err nil on success, error message otherwise.
 local function ecdsa_verify(message, signature, public_key_str, md_alg)
@@ -281,7 +281,7 @@ end
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
----@param md_alg ShaMdAlg Either sha256, sha384 or sha512.
+---@param md_alg JwtShaMdAlg Either sha256, sha384 or sha512.
 ---@return boolean|nil #Whether the signature is valid.
 ---@return string|nil err nil on success, error message otherwise.
 local function rsa_pss_verify(message, signature, public_key_str, md_alg)
@@ -530,7 +530,7 @@ function _M.verify(jwt_token, secret, options)
 end
 
 ---Extract CEK for content decryption and mac key for authentication.
----@param enc_info DecryptAlgInfo CEK encryption 'enc' parameters used for key extraction.
+---@param enc_info JwtDecryptAlgInfo CEK encryption 'enc' parameters used for key extraction.
 ---@param secret string CEK decryption secret.
 ---@return string|nil cek CEK on success, nil otherwise.
 ---@return string|nil mac_key MAC key on success, nil otherwise.
@@ -552,7 +552,7 @@ end
 
 ---Extract Content Encryption Key (CEK) necessary for later payload decryption
 ---using AES KW family algs.
----@param enc_info KeywrapAlgInfo CEK encryption 'alg' parameters used for key extraction.
+---@param enc_info JwtKeywrapAlgInfo CEK encryption 'alg' parameters used for key extraction.
 ---@param secret string CEK decryption secret.
 ---@param encrypted_key string Encrypted CEK embedded in the jwt but already base64 decoded.
 ---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.

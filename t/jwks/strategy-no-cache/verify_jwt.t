@@ -23,6 +23,12 @@ __DATA__
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
             local decoded_token, err = jwks.verify_jwt_with_jwks(
                 "eyJhbGciOiJSUzI1NiIsImtpZCI6IkQwbkpPd2RIWmJZOUd4V3JDQlJiZ1NWViIsInR5cCI6IkpXVCJ9.eyJleHAiOjgwNDQzNDg4MjQsImZvbyI6ImJhciIsImlhdCI6MTczMzAwMTYyNCwibmJmIjoxNzMzMDAxNjI0fQ.RwwBSxsHBu6maA_WyqaI1ny3b1RZCQPHvIxVBlBQT5SfptQ3zVWdGg6bc6xJvXytNh_MvaF3Pm9ITbOOOCslycwKy67b-uUzQll_hjLHiiT7jr6LiqVbYHb6WjjGfMBCHJvAySYkR9omrFq5z6UuHGE4dqacDW-JnwIOZ0-p1N4_x31pGNT_tTbli2aW6wOZXKMr6UhIZaNgAMh9HieQ4A_tKda6MTO1vzSCob0hLS3u8qv3zJ76JaDplS8EukZlcXAFkqNXKzAJOD7Mdt_1yLMPdVLp-IMiwopbZZLdetbZBjVEHOBUrmpfj7EVJcFekqJjrroqabQW5t_iT652Vw",
                 "http://127.0.0.1:1984/.well-known/jwks.json",
@@ -36,6 +42,8 @@ __DATA__
 --- request
     GET /t
 --- response_body
+true
+nil
 RS256
 bar
 nil
@@ -53,6 +61,12 @@ nil
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
             local decoded_token, err = jwks.verify_jwt_with_jwks(
                 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NTUwMTV9.NuEhIzUuufJgPZ8CmCPnD4Vrw7EnTyWD8bGtYCwuDZ0",
                 "http://127.0.0.1:1984/.well-known/jwks.json",
@@ -65,6 +79,8 @@ nil
 --- request
     GET /t
 --- response_body
+true
+nil
 nil
 failed verifying jwt: token does not have kid header and this lib does not support this case
 --- error_code: 200
@@ -81,6 +97,12 @@ failed verifying jwt: token does not have kid header and this lib does not suppo
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
             local decoded_token, err = jwks.verify_jwt_with_jwks(
                 "eyJhbGciOiJSUzI1NiIsImtpZCI6IkQwbkpPd2RIWmJZOUd4V3JDQlJiZ1NWViIsInR5cCI6IkpXVCJ9.eyJleHAiOjgwNDQzNDg4MjQsImZvbyI6ImJhciIsImlhdCI6MTczMzAwMTYyNCwibmJmIjoxNzMzMDAxNjI0fQ.RwwBSxsHBu6maA_WyqaI1ny3b1RZCQPHvIxVBlBQT5SfptQ3zVWdGg6bc6xJvXytNh_MvaF3Pm9ITbOOOCslycwKy67b-uUzQll_hjLHiiT7jr6LiqVbYHb6WjjGfMBCHJvAySYkR9omrFq5z6UuHGE4dqacDW-JnwIOZ0-p1N4_x31pGNT_tTbli2aW6wOZXKMr6UhIZaNgAMh9HieQ4A_tKda6MTO1vzSCob0hLS3u8qv3zJ76JaDplS8EukZlcXAFkqNXKzAJOD7Mdt_1yLMPdVLp-IMiwopbZZLdetbZBjVEHOBUrmpfj7EVJcFekqJjrroqabQW5t_iT652Vw",
                 "http://127.0.0.1:1984/.well-known/jwks.json",
@@ -93,6 +115,8 @@ failed verifying jwt: token does not have kid header and this lib does not suppo
 --- request
     GET /t
 --- response_body
+true
+nil
 nil
 failed verifying jwt: failed fetching jwks, returned unexpected http status: 404
 --- error_code: 200
@@ -109,6 +133,12 @@ failed verifying jwt: failed fetching jwks, returned unexpected http status: 404
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
             local decoded_token, err = jwks.verify_jwt_with_jwks(
                 "eyJhbGciOiJSUzI1NiIsImtpZCI6IkQwbkpPd2RIWmJZOUd4V3JDQlJiZ1NWViIsInR5cCI6IkpXVCJ9.eyJleHAiOjgwNDQzNDg4MjQsImZvbyI6ImJhciIsImlhdCI6MTczMzAwMTYyNCwibmJmIjoxNzMzMDAxNjI0fQ.RwwBSxsHBu6maA_WyqaI1ny3b1RZCQPHvIxVBlBQT5SfptQ3zVWdGg6bc6xJvXytNh_MvaF3Pm9ITbOOOCslycwKy67b-uUzQll_hjLHiiT7jr6LiqVbYHb6WjjGfMBCHJvAySYkR9omrFq5z6UuHGE4dqacDW-JnwIOZ0-p1N4_x31pGNT_tTbli2aW6wOZXKMr6UhIZaNgAMh9HieQ4A_tKda6MTO1vzSCob0hLS3u8qv3zJ76JaDplS8EukZlcXAFkqNXKzAJOD7Mdt_1yLMPdVLp-IMiwopbZZLdetbZBjVEHOBUrmpfj7EVJcFekqJjrroqabQW5t_iT652Vw",
                 "http://127.0.0.1:1984/.well-known/jwks.json",
@@ -121,6 +151,8 @@ failed verifying jwt: failed fetching jwks, returned unexpected http status: 404
 --- request
     GET /t
 --- response_body
+true
+nil
 nil
 failed verifying jwt: invalid json decoded: Expected value but found T_END at character 1
 --- error_code: 200
@@ -137,6 +169,12 @@ failed verifying jwt: invalid json decoded: Expected value but found T_END at ch
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
             local decoded_token, err = jwks.verify_jwt_with_jwks(
                 "eyJhbGciOiJSUzI1NiIsImtpZCI6IkQwbkpPd2RIWmJZOUd4V3JDQlJiZ1NWViIsInR5cCI6IkpXVCJ9.eyJleHAiOjgwNDQzNDg4MjQsImZvbyI6ImJhciIsImlhdCI6MTczMzAwMTYyNCwibmJmIjoxNzMzMDAxNjI0fQ.RwwBSxsHBu6maA_WyqaI1ny3b1RZCQPHvIxVBlBQT5SfptQ3zVWdGg6bc6xJvXytNh_MvaF3Pm9ITbOOOCslycwKy67b-uUzQll_hjLHiiT7jr6LiqVbYHb6WjjGfMBCHJvAySYkR9omrFq5z6UuHGE4dqacDW-JnwIOZ0-p1N4_x31pGNT_tTbli2aW6wOZXKMr6UhIZaNgAMh9HieQ4A_tKda6MTO1vzSCob0hLS3u8qv3zJ76JaDplS8EukZlcXAFkqNXKzAJOD7Mdt_1yLMPdVLp-IMiwopbZZLdetbZBjVEHOBUrmpfj7EVJcFekqJjrroqabQW5t_iT652Vw",
                 "http://127.0.0.1:1984/.well-known/jwks.json",
@@ -149,6 +187,8 @@ failed verifying jwt: invalid json decoded: Expected value but found T_END at ch
 --- request
     GET /t
 --- response_body
+true
+nil
 nil
 failed verifying jwt: jwks invalid format: missing or invalid field 'keys'
 --- error_code: 200
@@ -165,6 +205,12 @@ failed verifying jwt: jwks invalid format: missing or invalid field 'keys'
     location = /t {
         content_by_lua_block {
             local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
             local decoded_token, err = jwks.verify_jwt_with_jwks(
                 "eyJhbGciOiJSUzI1NiIsImtpZCI6IkQwbkpPd2RIWmJZOUd4V3JDQlJiZ1NWViIsInR5cCI6IkpXVCJ9.eyJleHAiOjgwNDQzNDg4MjQsImZvbyI6ImJhciIsImlhdCI6MTczMzAwMTYyNCwibmJmIjoxNzMzMDAxNjI0fQ.RwwBSxsHBu6maA_WyqaI1ny3b1RZCQPHvIxVBlBQT5SfptQ3zVWdGg6bc6xJvXytNh_MvaF3Pm9ITbOOOCslycwKy67b-uUzQll_hjLHiiT7jr6LiqVbYHb6WjjGfMBCHJvAySYkR9omrFq5z6UuHGE4dqacDW-JnwIOZ0-p1N4_x31pGNT_tTbli2aW6wOZXKMr6UhIZaNgAMh9HieQ4A_tKda6MTO1vzSCob0hLS3u8qv3zJ76JaDplS8EukZlcXAFkqNXKzAJOD7Mdt_1yLMPdVLp-IMiwopbZZLdetbZBjVEHOBUrmpfj7EVJcFekqJjrroqabQW5t_iT652Vw",
                 "http://127.0.0.1:1984/.well-known/jwks.json",
@@ -177,6 +223,8 @@ failed verifying jwt: jwks invalid format: missing or invalid field 'keys'
 --- request
     GET /t
 --- response_body
+true
+nil
 nil
 failed verifying jwt: could not find jwk with kid: D0nJOwdHZbY9GxWrCBRbgSVV
 --- error_code: 200

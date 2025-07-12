@@ -1,19 +1,27 @@
-local httpc = require("resty.http").new()
+local httpc = require("resty.http")
 local cjson = require("cjson.safe")
 local jwt = require("resty.jwt-verification")
 local table_isarray = require("table.isarray")
 
 local _M = { _VERSION = "0.2.1" }
 
+---@alias JwksCacheStrategyGet fun(key: string): string|nil
+---@alias JwksCacheStrategySetex fun(key: string, value: string, expiry: integer): boolean|nil, string|nil
+---@alias JwksCacheStrategy { get: JwksCacheStrategyGet, setex: JwksCacheStrategySetex }
 local jwks_options = {
     cache = {
         prefix = "openresty:jwt-verification:jwks:",
         default_exp_secs = 12 * 3600,
+        ---@type JwksCacheStrategyGet|nil
         get = nil,
+        ---@type JwksCacheStrategySetex|nil
         setex = nil,
     },
     http_client = {
-        ssl_verify = true
+        ssl_verify = true,
+        timeout_connect = 5000,
+        timeout_send = 5000,
+        timeout_read = 5000,
     }
 }
 
@@ -35,7 +43,7 @@ end
 ---function will always return success and do nothing.
 ---@param key string Cache key.
 ---@param value string Cache value.
----@param expiry number Cache entry expiry in seconds.
+---@param expiry integer Cache entry expiry in seconds.
 ---@return boolean|nil #true on success, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
 local function cache_setex(key, value, expiry)
@@ -46,36 +54,32 @@ local function cache_setex(key, value, expiry)
     return jwks_options.cache.setex(jwks_options.cache.prefix .. key, value, expiry)
 end
 
----Set jwks cache strategy to local.
----This cache strategy uses openresty `ngx.shared` dict under the hood for immediate keys lookup from memory. To keep things
----simple here, a failed jwt validation, with a stale jwk found in cache, *WILL NOT* cascade into a cache refresh. Either
----reduce the default ttl by changing the config `default_exp_secs` or implement yourself the cache invalidation procedure: this
----could be done as an internal nginx endpoint which would clear the shared dict `resty_jwt_verification_cache_jwks` after
----being called by some other service post jwks rotation.
----A better approach, would be to use the Redis caching strategy instead (which has yet to be implemented, sorry >.<).
----This would also have the advantage of sharing the same cache amongst multiple openresty instances.
----Note: remember to define the shared dict `lua_shared_dict resty_jwt_verification_cache_jwks 10m;` at openresty startup.
----Items are shared among all the nginx instance workers.
----@return boolean|nil #true on success, nil otherwise.
+---Initialize the jwks module and optionally specify a caching strategy.
+---This function should be called only once and in the `init_by_lua_file` section.
+---@param cache_strategy JwksCacheStrategy|nil Caching strategy to use. If left nil, no cache will be used.
+---@return boolean|nil ok true on success, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
-function _M.enable_cache_strategy_local()
+function _M.init(cache_strategy)
     if jwks_options.cache.get ~= nil or jwks_options.cache.setex ~= nil then
-        return nil, "jwks cache has already been initialized"
+        return nil, "jwks module has already been initialized"
     end
 
-    local jwks_cache_local = require("resty.jwt-verification-jwks-cache-local")
-    jwks_options.cache.get = jwks_cache_local.get
-    jwks_options.cache.setex = jwks_cache_local.setex
-    return true
+    if cache_strategy ~= nil then
+        jwks_options.cache.get = cache_strategy.get
+        jwks_options.cache.setex = cache_strategy.setex
+    end
+    return true, nil
 end
 
 ---Set jwks HTTP client timeouts.
 ---See resty.http docs for more info.
----@param connect number HTTP connection timeout in ms.
----@param send number HTTP send timeout in ms.
----@param read number HTTP read timeout in ms.
+---@param connect integer HTTP connection timeout in ms.
+---@param send integer HTTP send timeout in ms.
+---@param read integer HTTP read timeout in ms.
 function _M.set_http_timeouts_ms(connect, send, read)
-    httpc:set_timeouts(connect, send, read)
+    jwks_options.http_client.timeout_connect = connect
+    jwks_options.http_client.timeout_send = send
+    jwks_options.http_client.timeout_read = read
 end
 
 ---Enable or disable TLS certs verification.
@@ -83,6 +87,12 @@ end
 ---@param enabled boolean Enable or disable functionality.
 function _M.set_http_ssl_verify(enabled)
     jwks_options.http_client.ssl_verify = enabled
+end
+
+---Change the default cache TTL (12 hours).
+---@param expiry_secs integer New cache duration in seconds.
+function _M.set_cache_ttl(expiry_secs)
+    jwks_options.cache.default_exp_secs = expiry_secs
 end
 
 ---Manually fetch the jwks from an endpoint. Cache strategy is applied if enabled.
@@ -102,7 +112,15 @@ function _M.fetch_jwks(endpoint)
         return cached_value
     end
 
-    local res, err = httpc:request_uri(endpoint, {
+    ---Note: httpc cannot be instantiated in `init_by_lua_file` sections, so we create a new client for
+    ---each new request.
+    local http_client = httpc.new()
+    http_client:set_timeouts(
+        jwks_options.http_client.timeout_connect,
+        jwks_options.http_client.timeout_send,
+        jwks_options.http_client.timeout_read
+    )
+    local res, err = http_client:request_uri(endpoint, {
         method = "GET",
         ssl_verify = jwks_options.http_client.ssl_verify,
         keepalive = false
@@ -127,7 +145,7 @@ end
 ---Verify an asymmetrically signed jwt using jwks from a remote HTTP endpoint.
 ---@param jwt_token string Raw jwt token.
 ---@param jwks_endpoint string HTTP endpoint from where to fetch jwks.
----@param jwt_options JwtVerifyOptions Configuration used to verify the jwt. See verify in resty.jwt-verification for more info.
+---@param jwt_options JwtVerifyOptions|nil Configuration used to verify the jwt. See verify in resty.jwt-verification for more info.
 ---@return JwtResult|nil #Parsed jwt if valid, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
 function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)

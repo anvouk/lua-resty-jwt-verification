@@ -5,6 +5,7 @@ JWT verification library for OpenResty.
 ## Table of Contents
 
 - [Description](#description)
+- [Install](#install)
 - [Status](#status)
 - [Library non-goals](#library-non-goals)
 - [Differences from lua-resty-jwt](#differences-from-lua-resty-jwt)
@@ -40,11 +41,25 @@ with built-in support for JWKS.
 
 This project does not provide JWT manipulation or creation features: you can only verify/decrypt tokens.
 
+## Install
+
+Install with OPM (recommended):
+
+```bash
+opm get anvouk/lua-resty-jwt-verification
+```
+
+Or with luarocks:
+
+```bash
+luarocks install lua-resty-jwt-verification
+```
+
 ## Status
 
-Ready for testing: looking for more people to take it for a spin and provide feedback.
+Fully working, but looking for more people to take it for a spin and provide feedback.
 
-The APIs should be stable; I'll provide a migration document in case breaking changes happen in future releases.
+The APIs should be stable, but I reserve the right to make breaking changes until this project reaches 1.0;
 
 ## Library non-goals
 

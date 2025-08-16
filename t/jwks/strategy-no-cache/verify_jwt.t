@@ -230,3 +230,189 @@ failed verifying jwt: could not find jwk with kid: D0nJOwdHZbY9GxWrCBRbgSVV
 --- error_code: 200
 --- no_error_log
 [error]
+
+=== TEST 7: ok, jwt validated with symmetric key
+--- http_config eval: $::HttpConfig
+--- config
+    location = /.well-known/jwks.json {
+        return 200 '{"keys":[{"kid":"D0nJOwdHZbY9GxWrCBRbgSVV","use":"sig","kty":"oct","k":"K5uTCaoTN1qmvogYKami3i0DGDF4A3kBuLHWYyKQXZU"},{"kid":"3kC2w6oj81UbD2XKMr7hmJcl","use":"sig","kty":"oct","k":"gM5qVGDNZmt-8xr_Rzr-lQV8RawRI0zQ7v2XBxMNP0g"}]}';
+    }
+
+    location = /t {
+        content_by_lua_block {
+            local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
+            local decoded_token, err = jwks.verify_jwt_with_jwks(
+                "eyJhbGciOiJIUzI1NiIsImtpZCI6IjNrQzJ3Nm9qODFVYkQyWEtNcjdobUpjbCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3NTUzNDM2MzJ9.hK5hT8I3fwy3tKpsHWUoINQ9WEvj6GHXEkwYsQaBXQM",
+                "http://127.0.0.1:1984/.well-known/jwks.json",
+                nil
+            )
+            if not decoded_token then
+                ngx.say(err)
+                return
+            end
+            ngx.say(decoded_token.header.alg)
+            ngx.say(decoded_token.payload.foo)
+            ngx.say(err)
+        }
+    }
+--- request
+    GET /t
+--- response_body
+true
+nil
+HS256
+bar
+nil
+--- error_code: 200
+--- no_error_log
+[error]
+
+=== TEST 8: error, jwt validation with symmetric key fails because key is not correct
+--- http_config eval: $::HttpConfig
+--- config
+    location = /.well-known/jwks.json {
+        return 200 '{"keys":[{"kid":"D0nJOwdHZbY9GxWrCBRbgSVV","use":"sig","kty":"oct","k":"K5uTCaoTN1qmvogYKami3i0DGDF4A3kBuLHWYyKQXZU"},{"kid":"3kC2w6oj81UbD2XKMr7hmJcl","use":"sig","kty":"oct","k":"phTiOJ96sdkOSgUBtU66KCfxLOcPYu-qpqh1qfGYzMQ"}]}';
+    }
+
+    location = /t {
+        content_by_lua_block {
+            local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
+            local decoded_token, err = jwks.verify_jwt_with_jwks(
+                "eyJhbGciOiJIUzI1NiIsImtpZCI6IjNrQzJ3Nm9qODFVYkQyWEtNcjdobUpjbCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3NTUzNDM2MzJ9.hK5hT8I3fwy3tKpsHWUoINQ9WEvj6GHXEkwYsQaBXQM",
+                "http://127.0.0.1:1984/.well-known/jwks.json",
+                nil
+            )
+            ngx.say(decoded_token)
+            ngx.say(err)
+        }
+    }
+--- request
+    GET /t
+--- response_body
+true
+nil
+nil
+invalid jwt: signature does not match
+--- error_code: 200
+--- no_error_log
+[error]
+
+=== TEST 9: error, jwks have missing required field kty
+--- http_config eval: $::HttpConfig
+--- config
+    location = /.well-known/jwks.json {
+        return 200 '{"keys":[{"kid":"D0nJOwdHZbY9GxWrCBRbgSVV","use":"sig","k":"K5uTCaoTN1qmvogYKami3i0DGDF4A3kBuLHWYyKQXZU"},{"kid":"3kC2w6oj81UbD2XKMr7hmJcl","use":"sig","k":"gM5qVGDNZmt-8xr_Rzr-lQV8RawRI0zQ7v2XBxMNP0g"}]}';
+    }
+
+    location = /t {
+        content_by_lua_block {
+            local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
+            local decoded_token, err = jwks.verify_jwt_with_jwks(
+                "eyJhbGciOiJIUzI1NiIsImtpZCI6IjNrQzJ3Nm9qODFVYkQyWEtNcjdobUpjbCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3NTUzNDM2MzJ9.hK5hT8I3fwy3tKpsHWUoINQ9WEvj6GHXEkwYsQaBXQM",
+                "http://127.0.0.1:1984/.well-known/jwks.json",
+                nil
+            )
+            ngx.say(decoded_token)
+            ngx.say(err)
+        }
+    }
+--- request
+    GET /t
+--- response_body
+true
+nil
+nil
+failed verifying jwt: jwk kty field must be present
+--- error_code: 200
+--- no_error_log
+[error]
+
+=== TEST 10: error, jwks have unknown value in required field kty
+--- http_config eval: $::HttpConfig
+--- config
+    location = /.well-known/jwks.json {
+        return 200 '{"keys":[{"kid":"D0nJOwdHZbY9GxWrCBRbgSVV","use":"sig","kty":"AAA","k":"K5uTCaoTN1qmvogYKami3i0DGDF4A3kBuLHWYyKQXZU"},{"kid":"3kC2w6oj81UbD2XKMr7hmJcl","use":"sig","kty":"AAA","k":"gM5qVGDNZmt-8xr_Rzr-lQV8RawRI0zQ7v2XBxMNP0g"}]}';
+    }
+
+    location = /t {
+        content_by_lua_block {
+            local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
+            local decoded_token, err = jwks.verify_jwt_with_jwks(
+                "eyJhbGciOiJIUzI1NiIsImtpZCI6IjNrQzJ3Nm9qODFVYkQyWEtNcjdobUpjbCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3NTUzNDM2MzJ9.hK5hT8I3fwy3tKpsHWUoINQ9WEvj6GHXEkwYsQaBXQM",
+                "http://127.0.0.1:1984/.well-known/jwks.json",
+                nil
+            )
+            ngx.say(decoded_token)
+            ngx.say(err)
+        }
+    }
+--- request
+    GET /t
+--- response_body
+true
+nil
+nil
+failed verifying jwt: unknown or unsupported kty: AAA
+--- error_code: 200
+--- no_error_log
+[error]
+
+=== TEST 11: error, jwks with symmetric keys have missing required field k
+--- http_config eval: $::HttpConfig
+--- config
+    location = /.well-known/jwks.json {
+        return 200 '{"keys":[{"kid":"D0nJOwdHZbY9GxWrCBRbgSVV","use":"sig","kty":"oct"},{"kid":"3kC2w6oj81UbD2XKMr7hmJcl","use":"sig","kty":"oct"}]}';
+    }
+
+    location = /t {
+        content_by_lua_block {
+            local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
+            local decoded_token, err = jwks.verify_jwt_with_jwks(
+                "eyJhbGciOiJIUzI1NiIsImtpZCI6IjNrQzJ3Nm9qODFVYkQyWEtNcjdobUpjbCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3NTUzNDM2MzJ9.hK5hT8I3fwy3tKpsHWUoINQ9WEvj6GHXEkwYsQaBXQM",
+                "http://127.0.0.1:1984/.well-known/jwks.json",
+                nil
+            )
+            ngx.say(decoded_token)
+            ngx.say(err)
+        }
+    }
+--- request
+    GET /t
+--- response_body
+true
+nil
+nil
+failed verifying jwt: jwk k field must be present when kty is set to 'oct'
+--- error_code: 200
+--- no_error_log
+[error]

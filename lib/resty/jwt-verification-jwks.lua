@@ -1,3 +1,4 @@
+local b64 = require("ngx.base64")
 local httpc = require("resty.http")
 local cjson = require("cjson.safe")
 local jwt = require("resty.jwt-verification")
@@ -193,14 +194,37 @@ function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)
         return nil, "failed verifying jwt: could not find jwk with kid: " .. kid
     end
 
-    -- openssl can verify a signature from a jwk directly. We need, however, to pass it as a string.
-    -- FIXME: can we safely avoid decoding and then re-encoding the jwk?
-    jwk_to_use, err = cjson.encode(jwk_to_use)
-    if not jwk_to_use then
-        return nil, "failed verifying jwt: failed jsonify jwk: " .. err
-    end
+    -- as per https://datatracker.ietf.org/doc/html/rfc7517#section-4.1, kty must be present and well-defined.
+    if jwk_to_use.kty == nil then
+        return nil, "failed verifying jwt: jwk kty field must be present"
+    elseif jwk_to_use.kty == "oct" then
+        -- as per https://www.rfc-editor.org/rfc/rfc7518#section-6.4, jwk contains a symmetric key.
 
-    return jwt.verify(jwt_token, jwk_to_use, jwt_options)
+        if jwk_to_use.k == nil then
+            return nil, "failed verifying jwt: jwk k field must be present when kty is set to 'oct'"
+        end
+
+        -- as per https://www.rfc-editor.org/rfc/rfc7518#section-6.4.1, the symmetric key is base64url encoded.
+        local decoded_key = b64.decode_base64url(jwk_to_use.k)
+        if decoded_key == nil then
+            return nil, "failed verifying jwt: failed decoding base64url of k"
+        end
+
+        return jwt.verify(jwt_token, decoded_key, jwt_options)
+    elseif jwk_to_use.kty == "RSA" or jwk_to_use.kty == "EC" then
+        -- jwk contains an asymmetric key.
+
+        -- openssl can verify a signature from a jwk directly. We need, however, to pass it as a json string.
+        -- FIXME: can we safely avoid decoding and then re-encoding the jwk for asymmetic keys?
+        jwk_to_use, err = cjson.encode(jwk_to_use)
+        if not jwk_to_use then
+            return nil, "failed verifying jwt: failed jsonify jwk: " .. err
+        end
+
+        return jwt.verify(jwt_token, jwk_to_use, jwt_options)
+    else
+        return nil, "failed verifying jwt: unknown or unsupported kty: " .. jwk_to_use.kty
+    end
 end
 
 return _M

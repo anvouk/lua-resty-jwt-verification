@@ -1,9 +1,9 @@
 rockspec_format = "3.0"
 package = "lua-resty-jwt-verification"
-version = "0.3.0-1"
+version = "0.3.1-1"
 source = {
    url = "git+https://github.com/anvouk/lua-resty-jwt-verification",
-   tag = "v0.3.0"
+   tag = "v0.3.1"
 }
 description = {
    summary = "JWT verification library for OpenResty.",

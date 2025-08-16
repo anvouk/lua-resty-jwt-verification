@@ -575,6 +575,8 @@ local function derive_keys_alg_dir(enc_info, secret)
     return cek, mac_key
 end
 
+local aeskw_shared_iv = ngx.decode_base64("pqampqampqY=")
+
 ---Extract Content Encryption Key (CEK) necessary for later payload decryption
 ---using AES KW family algs.
 ---@param enc_info JwtKeywrapAlgInfo CEK encryption 'alg' parameters used for key extraction.
@@ -596,7 +598,7 @@ local function derive_cek_alg_aes_kw(enc_info, secret, encrypted_key)
         return nil, "failed creating openssl cipher: " .. err
     end
 
-    local decrypted_cek, _ = c:decrypt(secret, ngx.decode_base64("pqampqampqY="), encrypted_key)
+    local decrypted_cek, _ = c:decrypt(secret, aeskw_shared_iv, encrypted_key)
     if decrypted_cek == nil then
         return false
     end

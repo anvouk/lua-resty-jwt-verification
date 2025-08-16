@@ -170,6 +170,9 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |       A256KW       | :white_check_mark: |           Recommended            | *OpenSSL 3.0+ |
 |        dir         | :white_check_mark: |           Recommended            |               |
 |      ECDH-ES       |        :x:         |           Recommended+           |               |
+|   ECDH-ES+A128KW   |        :x:         |           Recommended            |               |
+|   ECDH-ES+A192KW   |        :x:         |             Optional             |               |
+|   ECDH-ES+A256KW   |        :x:         |           Recommended            |               |
 |     A128GCMKW      |        :x:         |             Optional             |               |
 |     A192GCMKW      |        :x:         |             Optional             |               |
 |     A256GCMKW      |        :x:         |             Optional             |               |

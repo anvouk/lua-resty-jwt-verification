@@ -15,7 +15,6 @@ JWT verification library for OpenResty.
   - [JWE Decryption](#jwe-decryption)
   - [JWKS retrieval cache strategies](#jwks-retrieval-cache-strategies)
 - [Planned missing features](#planned-missing-features)
-- [Dependencies](#dependencies)
 - [JWT verification usage](#jwt-verification-usage)
   - [jwt.decode_header_unsafe](#jwtdecode_header_unsafe)
   - [jwt.verify](#jwtverify)
@@ -116,21 +115,21 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   cty    |        :x:         |
 |   crit   | :white_check_mark: |
 
-|  Alg  |    Implemented     |
-|:-----:|:------------------:|
-| HS256 | :white_check_mark: |
-| HS384 | :white_check_mark: |
-| HS512 | :white_check_mark: |
-| RS256 | :white_check_mark: |
-| RS384 | :white_check_mark: |
-| RS512 | :white_check_mark: |
-| ES256 | :white_check_mark: |
-| ES384 | :white_check_mark: |
-| ES512 | :white_check_mark: |
-| PS256 | :white_check_mark: |
-| PS384 | :white_check_mark: |
-| PS512 | :white_check_mark: |
-| none  |        :x:         |
+|  alg  |    Implemented     | JOSE Implementation Requirements |
+|:-----:|:------------------:|:--------------------------------:|
+| HS256 | :white_check_mark: |             Required             |
+| HS384 | :white_check_mark: |             Optional             |
+| HS512 | :white_check_mark: |             Optional             |
+| RS256 | :white_check_mark: |           Recommended            |
+| RS384 | :white_check_mark: |             Optional             |
+| RS512 | :white_check_mark: |             Optional             |
+| ES256 | :white_check_mark: |           Recommended+           |
+| ES384 | :white_check_mark: |             Optional             |
+| ES512 | :white_check_mark: |             Optional             |
+| PS256 | :white_check_mark: |             Optional             |
+| PS384 | :white_check_mark: |             Optional             |
+| PS512 | :white_check_mark: |             Optional             |
+| none  |        :x:         |             Optional             |
 
 ### JWE Decryption
 
@@ -150,22 +149,33 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   cty    |        :x:         |
 |   crit   | :white_check_mark: |
 
-|        Alg         |     Implemented     | Requirements  |
-|:------------------:|:-------------------:|:-------------:|
-|       RSA1_5       |         :x:         |               |
-|      RSA-OAEP      |         :x:         |               |
-|    RSA-OAEP-256    |         :x:         |               |
-|       A128KW       | :white_check_mark:  | *OpenSSL 3.0+ |
-|       A192KW       | :white_check_mark:  | *OpenSSL 3.0+ |
-|       A256KW       | :white_check_mark:  | *OpenSSL 3.0+ |
-|        dir         | :white_check_mark:  |               |
-|      ECDH-ES       |         :x:         |               |
-|     A128GCMKW      |         :x:         |               |
-|     A192GCMKW      |         :x:         |               |
-|     A256GCMKW      |         :x:         |               |
-| PBES2-HS256+A128KW |         :x:         |               |
-| PBES2-HS384+A192KW |         :x:         |               |
-| PBES2-HS512+A256KW |         :x:         |               |
+| kty |    Implemented     | JOSE Implementation Requirements |
+|:---:|:------------------:|:--------------------------------:|
+| EC  | :white_check_mark: |           Recommended+           |
+| RSA | :white_check_mark: |             Required             |
+| oct | :white_check_mark: |             Required             |
+| OKP |        :x:         |             Optional             |
+
+|        alg         |    Implemented     | JOSE Implementation Requirements | Requirements  |
+|:------------------:|:------------------:|:--------------------------------:|:-------------:|
+|       RSA1_5       |        :x:         |           Recommended-           |               |
+|      RSA-OAEP      |        :x:         |           Recommended+           |               |
+|    RSA-OAEP-256    |        :x:         |             Optional             |               |
+|       A128KW       | :white_check_mark: |           Recommended            | *OpenSSL 3.0+ |
+|       A192KW       | :white_check_mark: |             Optional             | *OpenSSL 3.0+ |
+|       A256KW       | :white_check_mark: |           Recommended            | *OpenSSL 3.0+ |
+|        dir         | :white_check_mark: |           Recommended            |               |
+|      ECDH-ES       |        :x:         |           Recommended+           |               |
+|     A128GCMKW      |        :x:         |             Optional             |               |
+|     A192GCMKW      |        :x:         |             Optional             |               |
+|     A256GCMKW      |        :x:         |             Optional             |               |
+| PBES2-HS256+A128KW |        :x:         |             Optional             |               |
+| PBES2-HS384+A192KW |        :x:         |             Optional             |               |
+| PBES2-HS512+A256KW |        :x:         |             Optional             |               |
+|       EdDSA        |        :x:         |            Deprecated            |               |
+|       ES256K       |        :x:         |             Optional             |               |
+|      Ed25519       |        :x:         |             Optional             |               |
+|       Ed448        |        :x:         |             Optional             |               |
 
 > *The first official release of OpenResty including OpenSSL 3.0+ is [OpenResty 1.27.1.1](https://openresty.org/en/ann-1027001001.html)
 > which shipped with OpenSSL 3.0.15 (Yes, the [godawful slow OpenSSL 3.0 series...](https://github.com/openssl/openssl/issues/17064)).
@@ -173,14 +183,14 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 > So, please, go with [OpenResty 1.27.1.2](https://openresty.org/en/ann-1027001002.html) as a minimum, which shipped
 > with OpenSSL 3.4.1.
 
-|      Enc      |    Implemented     |
-|:-------------:|:------------------:|
-| A128CBC-HS256 | :white_check_mark: |
-| A192CBC-HS384 | :white_check_mark: |
-| A256CBC-HS512 | :white_check_mark: |
-|    A128GCM    | :white_check_mark: |
-|    A192GCM    | :white_check_mark: |
-|    A256GCM    | :white_check_mark: |
+|      enc      |    Implemented     | JOSE Implementation Requirements |
+|:-------------:|:------------------:|:--------------------------------:|
+| A128CBC-HS256 | :white_check_mark: |             Required             |
+| A192CBC-HS384 | :white_check_mark: |             Optional             |
+| A256CBC-HS512 | :white_check_mark: |             Required             |
+|    A128GCM    | :white_check_mark: |           Recommended            |
+|    A192GCM    | :white_check_mark: |             Optional             |
+|    A256GCM    | :white_check_mark: |           Recommended            |
 
 ## JWKS retrieval cache strategies
 
@@ -197,14 +207,6 @@ This is a list of missing features I'd like to implement when given enough time:
 - Nested JWT (i.e. JWT in JWE).
 - JWKS Redis cache strategy.
 - Automatic JWKS validation for JWE.
-
-## Dependencies
-
-```bash
-luarocks install lua-cjson
-luarocks install lua-resty-openssl
-luarocks install lua-resty-http
-```
 
 ## JWT verification usage
 
@@ -557,6 +559,7 @@ print(tostring(jwt.payload))
 - [RFC 7518](https://datatracker.ietf.org/doc/html/rfc7518) JSON Web Algorithms (JWA)
 - [RFC 7519](https://datatracker.ietf.org/doc/html/rfc7519) JSON Web Token (JWT)
 - [RFC 7520](https://datatracker.ietf.org/doc/html/rfc7520) Examples of Protecting Content Using JSON Object Signing and Encryption (JOSE)
+- [IANA JOSE assignments](https://www.iana.org/assignments/jose/jose.xhtml)
 
 ## Run tests
 

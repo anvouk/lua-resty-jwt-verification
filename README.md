@@ -468,7 +468,7 @@ Set HTTP client timeouts in milliseconds used for fetching JWKS.
 ```lua
 local jwks = require("resty.jwt-verification-jwks")
 
-jwks.enable_cache_strategy_local(5000, 5000, 5000)
+jwks.set_http_timeouts_ms(5000, 5000, 5000)
 ```
 
 ### jwks.set_http_ssl_verify

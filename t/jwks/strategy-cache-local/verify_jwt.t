@@ -471,3 +471,46 @@ nil
 --- error_code: 200
 --- no_error_log
 [error]
+
+=== TEST 13: ok, jwt validated with Ed448
+--- http_config eval: $::HttpConfig
+--- config
+    location = /.well-known/jwks.json {
+        return 200 '{"keys":[{"kid":"D0nJOwdHZbY9GxWrCBRbgSVV","use":"sig","crv":"Ed448","x":"iku3DswbSsHFG73V1e_m9fFclJFSeyg_qTLthPFRzTaYvPpOE74qyo2grL3U8ySSU2L9o5Il1FiA","kty":"OKP"}]}';
+    }
+
+    location = /t {
+        content_by_lua_block {
+            local jwks = require "resty.jwt-verification-jwks"
+            local jwks_cache_local = require "resty.jwt-verification-jwks-cache-local"
+            local ok, err = jwks.init(jwks_cache_local)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
+            local decoded_token, err = jwks.verify_jwt_with_jwks(
+                "eyJhbGciOiJFZDQ0OCIsImtpZCI6IkQwbkpPd2RIWmJZOUd4V3JDQlJiZ1NWViJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3NTUzNjQxOTZ9.H3VQOtsrlgufOdVOUtzsyLdCtXDr2HbQDTlgR9QjRpLeKRDX51hrHWOuJKZYkZQvD-y1NiAb9K6AjrkSBs5A33uMFxDh9H-y4Pi2gQbM6PVH5ngkaJcmYqEi8FXCL5wvJMrUR_alYMIkun2J6smN0QIA",
+                "http://127.0.0.1:1984/.well-known/jwks.json",
+                nil
+            )
+            if not decoded_token then
+                ngx.say(err)
+                return
+            end
+            ngx.say(decoded_token.header.alg)
+            ngx.say(decoded_token.payload.foo)
+            ngx.say(err)
+        }
+    }
+--- request
+    GET /t
+--- response_body
+true
+nil
+Ed448
+bar
+nil
+--- error_code: 200
+--- no_error_log
+[error]

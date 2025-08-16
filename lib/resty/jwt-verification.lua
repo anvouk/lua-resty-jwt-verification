@@ -116,7 +116,7 @@ local verify_default_options = {
         ["RS256"]="RS256", ["RS384"]="RS384", ["RS512"]="RS512",
         ["ES256"]="ES256", ["ES384"]="ES384", ["ES512"]="ES512",
         ["PS256"]="PS256", ["PS384"]="PS384", ["PS512"]="PS512",
-        ["Ed25519"]="Ed25519",
+        ["Ed25519"]="Ed25519", ["Ed448"]="Ed448",
     },
     typ = nil,
     issuer = nil,
@@ -296,13 +296,13 @@ local function rsa_pss_verify(message, signature, public_key_str, md_alg)
     return pk:verify(signature, message, md_alg, pkey.PADDINGS.RSA_PKCS1_PSS_PADDING)
 end
 
----Verify an existing signature for a message with Ed25519.
+---Verify an existing signature for a message with either Ed25519 or Ed448.
 ---@param message string Message which signature belongs to.
 ---@param signature string Message's signature.
 ---@param public_key_str string Public key used to verify the signature.
 ---@return boolean|nil #Whether the signature is valid.
 ---@return string|nil err nil on success, error message otherwise.
-local function ed25519_verify(message, signature, public_key_str)
+local function ed25519_or_ed448_verify(message, signature, public_key_str)
     local pk, err = pkey.new(public_key_str, {
         format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
     })
@@ -526,8 +526,8 @@ function _M.verify(jwt_token, secret, options)
         elseif not is_valid then
             return nil, "invalid jwt: signature does not match"
         end
-    elseif jwt_header.alg == "Ed25519" then
-        local is_valid, err = ed25519_verify(jwt_portion_to_verify, jwt_signature, secret)
+    elseif jwt_header.alg == "Ed25519" or jwt_header.alg == "Ed448" then
+        local is_valid, err = ed25519_or_ed448_verify(jwt_portion_to_verify, jwt_signature, secret)
         if is_valid == nil then
             return nil, "invalid jwt: " .. err
         elseif not is_valid then

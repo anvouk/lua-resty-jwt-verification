@@ -416,3 +416,45 @@ failed verifying jwt: jwk k field must be present when kty is set to 'oct'
 --- error_code: 200
 --- no_error_log
 [error]
+
+=== TEST 12: ok, jwt validated with Ed25519
+--- http_config eval: $::HttpConfig
+--- config
+    location = /.well-known/jwks.json {
+        return 200 '{"keys":[{"kid":"D0nJOwdHZbY9GxWrCBRbgSVV","use":"sig","crv":"Ed25519","x":"-i7KjL2-4AdiQBtcBTpEseRzh5sFRfSCtuEAhpGrw5s","kty":"OKP"}]}';
+    }
+
+    location = /t {
+        content_by_lua_block {
+            local jwks = require "resty.jwt-verification-jwks"
+            local ok, err = jwks.init(nil)
+            ngx.say(ok)
+            ngx.say(err)
+            if not ok then
+                return
+            end
+            local decoded_token, err = jwks.verify_jwt_with_jwks(
+                "eyJhbGciOiJFZDI1NTE5Iiwia2lkIjoiRDBuSk93ZEhaYlk5R3hXckNCUmJnU1ZWIn0.eyJmb28iOiJiYXIiLCJpYXQiOjE3NTUzNjI2Nzd9.So_gg2byedpFbCF8vDtngRcOge2UKxggWTTF2M5QK6CDtSKg0-NeRYw_PJOchnYYwD2h7RuPj4DdkQckMcvMCg",
+                "http://127.0.0.1:1984/.well-known/jwks.json",
+                nil
+            )
+            if not decoded_token then
+                ngx.say(err)
+                return
+            end
+            ngx.say(decoded_token.header.alg)
+            ngx.say(decoded_token.payload.foo)
+            ngx.say(err)
+        }
+    }
+--- request
+    GET /t
+--- response_body
+true
+nil
+Ed25519
+bar
+nil
+--- error_code: 200
+--- no_error_log
+[error]

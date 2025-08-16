@@ -115,21 +115,25 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   cty    |        :x:         |
 |   crit   | :white_check_mark: |
 
-|  alg  |    Implemented     | JOSE Implementation Requirements |
-|:-----:|:------------------:|:--------------------------------:|
-| HS256 | :white_check_mark: |             Required             |
-| HS384 | :white_check_mark: |             Optional             |
-| HS512 | :white_check_mark: |             Optional             |
-| RS256 | :white_check_mark: |           Recommended            |
-| RS384 | :white_check_mark: |             Optional             |
-| RS512 | :white_check_mark: |             Optional             |
-| ES256 | :white_check_mark: |           Recommended+           |
-| ES384 | :white_check_mark: |             Optional             |
-| ES512 | :white_check_mark: |             Optional             |
-| PS256 | :white_check_mark: |             Optional             |
-| PS384 | :white_check_mark: |             Optional             |
-| PS512 | :white_check_mark: |             Optional             |
-| none  |        :x:         |             Optional             |
+|   alg   |    Implemented     | JOSE Implementation Requirements | Requirements  |
+|:-------:|:------------------:|:--------------------------------:|:-------------:|
+|  HS256  | :white_check_mark: |             Required             |               |
+|  HS384  | :white_check_mark: |             Optional             |               |
+|  HS512  | :white_check_mark: |             Optional             |               |
+|  RS256  | :white_check_mark: |           Recommended            |               |
+|  RS384  | :white_check_mark: |             Optional             |               |
+|  RS512  | :white_check_mark: |             Optional             |               |
+|  ES256  | :white_check_mark: |           Recommended+           |               |
+|  ES384  | :white_check_mark: |             Optional             |               |
+|  ES512  | :white_check_mark: |             Optional             |               |
+|  PS256  | :white_check_mark: |             Optional             |               |
+|  PS384  | :white_check_mark: |             Optional             |               |
+|  PS512  | :white_check_mark: |             Optional             |               |
+|  none   |        :x:         |             Optional             |               |
+|  EdDSA  |        :x:         |            Deprecated            |               |
+| ES256K  |        :x:         |             Optional             |               |
+| Ed25519 | :white_check_mark: |             Optional             | *OpenSSL 3.0+ |
+|  Ed448  |        :x:         |             Optional             |               |
 
 ### JWE Decryption
 
@@ -154,7 +158,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 | EC  | :white_check_mark: |           Recommended+           |
 | RSA | :white_check_mark: |             Required             |
 | oct | :white_check_mark: |             Required             |
-| OKP |        :x:         |             Optional             |
+| OKP | :white_check_mark: |             Optional             |
 
 |        alg         |    Implemented     | JOSE Implementation Requirements | Requirements  |
 |:------------------:|:------------------:|:--------------------------------:|:-------------:|
@@ -172,10 +176,6 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 | PBES2-HS256+A128KW |        :x:         |             Optional             |               |
 | PBES2-HS384+A192KW |        :x:         |             Optional             |               |
 | PBES2-HS512+A256KW |        :x:         |             Optional             |               |
-|       EdDSA        |        :x:         |            Deprecated            |               |
-|       ES256K       |        :x:         |             Optional             |               |
-|      Ed25519       |        :x:         |             Optional             |               |
-|       Ed448        |        :x:         |             Optional             |               |
 
 > *The first official release of OpenResty including OpenSSL 3.0+ is [OpenResty 1.27.1.1](https://openresty.org/en/ann-1027001001.html)
 > which shipped with OpenSSL 3.0.15 (Yes, the [godawful slow OpenSSL 3.0 series...](https://github.com/openssl/openssl/issues/17064)).
@@ -257,6 +257,7 @@ local verify_default_options = {
         ["RS256"]="RS256", ["RS384"]="RS384", ["RS512"]="RS512",
         ["ES256"]="ES256", ["ES384"]="ES384", ["ES512"]="ES512",
         ["PS256"]="PS256", ["PS384"]="PS384", ["PS512"]="PS512",
+        ["Ed25519"]="Ed25519",
     },
     typ = nil,
     issuer = nil,

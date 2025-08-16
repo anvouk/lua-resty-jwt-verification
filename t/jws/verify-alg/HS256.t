@@ -21,6 +21,10 @@ __DATA__
             local jwt = require "resty.jwt-verification"
             local token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NTUwMTV9.NuEhIzUuufJgPZ8CmCPnD4Vrw7EnTyWD8bGtYCwuDZ0"
             local decoded_token, err = jwt.verify(token, "superSecretKey", nil)
+            if not decoded_token then
+                ngx.say(err)
+                return
+            end
             ngx.say(decoded_token.header.alg)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)

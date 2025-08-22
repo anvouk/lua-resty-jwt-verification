@@ -572,7 +572,7 @@ local function derive_cek_alg_aes_kw(alg_info, secret, encrypted_key)
     end
 
     if #secret ~= alg_info.enc_key_len then
-        return nil, "secret key has not expected length of " .. alg_info.enc_key_len
+        return nil, "secret key expected of length: " .. alg_info.enc_key_len .. " but got: " .. #secret
     end
 
     local c, err = cipher.new(alg_info.aes)
@@ -639,7 +639,7 @@ local function derive_cek_alg_ecdh_es(enc_info, jwt_header, secret_key)
         return nil, "failed deriving ECDH key: " .. err
     end
 
-    local cek_len = enc_info.enc_key_len * 8
+    local cek_len = (enc_info.enc_key_len + enc_info.mac_key_len) * 8
 
     local value = {}
     for _, v in ipairs(binutils.uint32be_array(#jwt_header.enc)) do
@@ -684,7 +684,7 @@ local function decrypt_content_cbc(enc_info, cek, ciphertext, iv, aead_aad, aead
 
     local secret_key_len = enc_info.mac_key_len + enc_info.enc_key_len
     if #cek ~= secret_key_len then
-        return nil, "secret key has not expected length of " .. secret_key_len
+        return nil, "secret key expected of length: " .. secret_key_len .. " but got: " .. #cek
     end
 
     local enc_key = string.sub(cek, enc_info.mac_key_len + 1)

@@ -10,13 +10,13 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: ECDH-ES + A128GCM ok
+=== TEST 1: ECDH-ES + A256CBC-HS512 ok
 --- http_config eval: $::HttpConfig
 --- config
     location = /t {
         content_by_lua_block {
             local jwt = require "resty.jwt-verification"
-            local token = "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOEdDTSIsImVwayI6eyJ4IjoielBPbThZdDFvQ0ViNkZBT1JiNFkyZEN3LXYxeS1FdEtsb3pLd3RuUXRHcyIsImNydiI6IlgyNTUxOSIsImt0eSI6Ik9LUCJ9fQ..UxtgZBnokU71Z8eU.Lm0h4-xJPiQN1D9MMA.AOjNJwF6fK6E1bpsfDmTLQ"
+            local token = "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkNCQy1IUzUxMiIsImVwayI6eyJ4IjoiWi13SmJZRzhuODU0elNkRzhuSThKblgxQkRvOGNYcG1QUVo1Y0JqUGRRUSIsImNydiI6IlgyNTUxOSIsImt0eSI6Ik9LUCJ9fQ..RJ5mAMni8iHV41GXvpGsxg.Lm_twLxPloxIxG6QG9kjXw.r3Gwiml-ttol4ULuq707VUYKV6a0DSCIdvFm7HUdOao"
             local decoded_token, err = jwt.decrypt(token, "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VuBCIEIMCxXl/FEuh3pGo1Z++QRs2vudqkGd63mK0Js0f6y+55\n-----END PRIVATE KEY-----", nil)
             if decoded_token ~= nil then
                 ngx.say(decoded_token.header.alg .. "|" .. decoded_token.header.enc)
@@ -31,20 +31,20 @@ __DATA__
 --- request
     GET /t
 --- response_body
-ECDH-ES|A128GCM
+ECDH-ES|A256CBC-HS512
 bar
 nil
 --- error_code: 200
 --- no_error_log
 [error]
 
-=== TEST 2: ECDH-ES + A128GCM error, wrong secret
+=== TEST 2: ECDH-ES + A256CBC-HS512 error, wrong secret
 --- http_config eval: $::HttpConfig
 --- config
     location = /t {
         content_by_lua_block {
             local jwt = require "resty.jwt-verification"
-            local token = "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTEyOEdDTSIsImVwayI6eyJ4IjoielBPbThZdDFvQ0ViNkZBT1JiNFkyZEN3LXYxeS1FdEtsb3pLd3RuUXRHcyIsImNydiI6IlgyNTUxOSIsImt0eSI6Ik9LUCJ9fQ..UxtgZBnokU71Z8eU.Lm0h4-xJPiQN1D9MMA.AOjNJwF6fK6E1bpsfDmTLQ"
+            local token = "eyJhbGciOiJFQ0RILUVTIiwiZW5jIjoiQTI1NkNCQy1IUzUxMiIsImVwayI6eyJ4IjoiWi13SmJZRzhuODU0elNkRzhuSThKblgxQkRvOGNYcG1QUVo1Y0JqUGRRUSIsImNydiI6IlgyNTUxOSIsImt0eSI6Ik9LUCJ9fQ..RJ5mAMni8iHV41GXvpGsxg.Lm_twLxPloxIxG6QG9kjXw.r3Gwiml-ttol4ULuq707VUYKV6a0DSCIdvFm7HUdOao"
             local decoded_token, err = jwt.decrypt(token, "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgnzYqsGtwcAEvibcN\n2z6hhSW4CXV5W9+QdhwIKI7wAyyhRANCAATm0uPgVVAtPSLaTb74SSH5iGiNkvPR\nwGxQfVPz2pRu6wZ5LrFEp0BwMGp3bcix3EUXm2ca5s5E/hi9M2rvpR6U\n-----END PRIVATE KEY-----", nil)
             if decoded_token ~= nil then
                 ngx.say(decoded_token.header.alg .. "|" .. decoded_token.header.enc)

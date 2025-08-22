@@ -48,3 +48,8 @@ end
 ---@return string
 function ngx.decode_base64(str)
 end
+
+---@param str string
+---@return string
+function ngx.encode_base64(str)
+end

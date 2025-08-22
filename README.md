@@ -169,7 +169,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |       A192KW       | :white_check_mark: |             Optional             | *OpenSSL 3.0+ |
 |       A256KW       | :white_check_mark: |           Recommended            | *OpenSSL 3.0+ |
 |        dir         | :white_check_mark: |           Recommended            |               |
-|      ECDH-ES       |        :x:         |           Recommended+           |               |
+|      ECDH-ES       | :white_check_mark: |           Recommended+           |               |
 |   ECDH-ES+A128KW   |        :x:         |           Recommended            |               |
 |   ECDH-ES+A192KW   |        :x:         |             Optional             |               |
 |   ECDH-ES+A256KW   |        :x:         |           Recommended            |               |
@@ -342,7 +342,7 @@ Default values for `options` fields:
 local decrypt_default_options = {
     valid_encryption_alg_algorithms = {
         ["A128KW"]="A128KW", ["A192KW"]="A192KW", ["A256KW"]="A256KW",
-        ["dir"]="dir",
+        ["dir"]="dir", ["ECDH-ES"]="ECDH-ES",
     },
     valid_encryption_enc_algorithms = {
         ["A128CBC-HS256"]="A128CBC-HS256",

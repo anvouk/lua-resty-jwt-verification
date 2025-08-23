@@ -31,6 +31,7 @@ local md_alg_table = {
     ["RS512"] = "sha512",
     ["ES512"] = "sha512",
     ["PS512"] = "sha512",
+    ["ES256K"] = "sha256",
 }
 
 ---@alias JwtRsaOaepHash "sha1"|"sha256"|"sha384"|"sha512" supported sha types.
@@ -147,7 +148,7 @@ local verify_default_options = {
         ["RS256"]="RS256", ["RS384"]="RS384", ["RS512"]="RS512",
         ["ES256"]="ES256", ["ES384"]="ES384", ["ES512"]="ES512",
         ["PS256"]="PS256", ["PS384"]="PS384", ["PS512"]="PS512",
-        ["Ed25519"]="Ed25519", ["Ed448"]="Ed448",
+        ["ES256K"]="ES256K", ["Ed25519"]="Ed25519", ["Ed448"]="Ed448",
     },
     typ = nil,
     issuer = nil,
@@ -537,7 +538,7 @@ function _M.verify(jwt_token, secret, options)
         elseif not is_valid then
             return nil, "invalid jwt: signature does not match"
         end
-    elseif jwt_header.alg == "ES256" or jwt_header.alg == "ES384" or jwt_header.alg == "ES512" then
+    elseif jwt_header.alg == "ES256" or jwt_header.alg == "ES384" or jwt_header.alg == "ES512" or jwt_header.alg == "ES256K" then
         local is_valid, err = ecdsa_verify(jwt_portion_to_verify, jwt_signature, secret, md_alg_table[jwt_header.alg])
         if is_valid == nil then
             return nil, "invalid jwt: " .. err

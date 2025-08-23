@@ -5,6 +5,7 @@ local hmac = require("resty.openssl.hmac")
 local cipher = require("resty.openssl.cipher")
 local table_isempty = require("table.isempty")
 local table_isarray = require("table.isarray")
+local table_clone = require("table.clone")
 local binutils = require("resty.jwt-verification.binutils")
 local crypto = require("resty.jwt-verification.crypto")
 
@@ -435,7 +436,7 @@ function _M.verify(jwt_token, secret, options)
     end
 
     if options == nil then
-        options = verify_default_options
+        options = table_clone(verify_default_options)
         options.current_unix_timestamp = ngx.time()
     elseif type(options) ~= "table" then
         return nil, "invalid configuration: parameter options is not a valid table"
@@ -799,7 +800,7 @@ function _M.decrypt(jwt_token, secret, options)
     end
 
     if options == nil then
-        options = decrypt_default_options
+        options = table_clone(decrypt_default_options)
         options.current_unix_timestamp = ngx.time()
     elseif type(options) ~= "table" then
         return nil, "invalid configuration: parameter options is not a valid table"

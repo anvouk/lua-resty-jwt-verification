@@ -153,7 +153,11 @@ local verify_default_options = {
 local decrypt_default_options = {
     valid_encryption_alg_algorithms = {
         ["A128KW"]="A128KW", ["A192KW"]="A192KW", ["A256KW"]="A256KW",
-        ["dir"]="dir", ["ECDH-ES"]="ECDH-ES",
+        ["dir"]="dir",
+        ["ECDH-ES"]="ECDH-ES",
+        ["ECDH-ES+A128KW"]="ECDH-ES+A128KW",
+        ["ECDH-ES+A192KW"]="ECDH-ES+A192KW",
+        ["ECDH-ES+A256KW"]="ECDH-ES+A256KW",
     },
     valid_encryption_enc_algorithms = {
         ["A128CBC-HS256"]="A128CBC-HS256",
@@ -566,7 +570,7 @@ local aeskw_shared_iv = ngx.decode_base64("pqampqampqY=")
 ---@param encrypted_key string Encrypted CEK embedded in the jwt but already base64 decoded.
 ---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
-local function derive_cek_alg_aes_kw(alg_info, secret, encrypted_key)
+local function derive_cek_alg_aeskw(alg_info, secret, encrypted_key)
     if alg_info == nil then
         return nil, "unsupported enc in cek calculation"
     end
@@ -589,37 +593,35 @@ end
 
 ---Extract Content Encryption Key (CEK) necessary for later payload decryption
 ---using ECDH-ES alg.
----@param enc_info JwtDecryptAlgInfo Decryption algorithm's specific settings.
----@param jwt_header JwtHeader jwt header.
+---@param epk JwtHeaderJweEpk Public key in JWK format as table, used to DH the CEK.
+---@param alg string alg name used to derive CEK.
+---@param cek_len integer Size of the CEK to extract.
 ---@param secret_key string private key passed as secret.
 ---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
-local function derive_cek_alg_ecdh_es(enc_info, jwt_header, secret_key)
-    if type(jwt_header.epk) ~= "table" then
-        return nil, "header field epk must be an object"
-    end
-    if jwt_header.epk.kty ~= 'EC' and jwt_header.epk.kty ~= 'OKP' then
-        return nil, "ECDH-ES alg must use either EC or OKP keys, but got: " .. jwt_header.epk.kty
+local function derive_ecdhes(epk, alg, cek_len, secret_key)
+    if epk.kty ~= 'EC' and epk.kty ~= 'OKP' then
+        return nil, "ECDH-ES alg must use either EC or OKP keys, but got: " .. epk.kty
     end
 
     local apu = ""
-    if type(jwt_header.epk.apu) == "string" then
-        apu = b64.decode_base64url(jwt_header.epk.apu)
+    if type(epk.apu) == "string" then
+        apu = b64.decode_base64url(epk.apu)
         if apu == nil then
             return nil, "failed base64url decoding epk.apu field"
         end
     end
 
     local apv = ""
-    if type(jwt_header.epk.apv) == "string" then
-        apv = b64.decode_base64url(jwt_header.epk.apv)
+    if type(epk.apv) == "string" then
+        apv = b64.decode_base64url(epk.apv)
         if apv == nil then
             return nil, "failed base64url decoding epk.apv field"
         end
     end
 
     -- FIXME: find a better way to avoid reserializing epk
-    local epk_str, err = cjson.encode(jwt_header.epk)
+    local epk_str, err = cjson.encode(epk)
     if not epk_str then
         return nil, "failed json encoding epk public key: " .. err
     end
@@ -639,14 +641,13 @@ local function derive_cek_alg_ecdh_es(enc_info, jwt_header, secret_key)
         return nil, "failed deriving ECDH key: " .. err
     end
 
-    local cek_len = (enc_info.enc_key_len + enc_info.mac_key_len) * 8
-
+    -- compute kdf
     local value = {}
-    for _, v in ipairs(binutils.uint32be_array(#jwt_header.enc)) do
+    for _, v in ipairs(binutils.uint32be_array(#alg)) do
         table.insert(value, v)
     end
-    for i = 1, #jwt_header.enc do
-        table.insert(value, string.sub(jwt_header.enc, i, i))
+    for i = 1, #alg do
+        table.insert(value, string.sub(alg, i, i))
     end
     for _, v in ipairs(binutils.uint32be_array(#apu)) do
         table.insert(value, v)
@@ -665,6 +666,58 @@ local function derive_cek_alg_ecdh_es(enc_info, jwt_header, secret_key)
     end
 
     return crypto.concat_kdf(shared_secret, cek_len, table.concat(value))
+end
+
+---Extract Content Encryption Key (CEK) necessary for later payload decryption
+---using ECDH-ES alg.
+---@param enc_info JwtDecryptAlgInfo Decryption algorithm's specific settings.
+---@param jwt_header JwtHeader jwt header.
+---@param secret_key string private key passed as secret.
+---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+local function derive_cek_alg_ecdhes(enc_info, jwt_header, secret_key)
+    if type(jwt_header.epk) ~= "table" then
+        return nil, "header field epk must be an object"
+    end
+
+    ---@cast jwt_header.enc string
+    return derive_ecdhes(
+        jwt_header.epk,
+        jwt_header.enc,
+        (enc_info.enc_key_len + enc_info.mac_key_len) * 8,
+        secret_key
+    )
+end
+
+---Extract Content Encryption Key (CEK) necessary for later payload decryption
+---using ECDH-ES and AES key wrap family algs.
+---@param keywrap_info JwtKeywrapAlgInfo AES key wrap algorithm's specific settings.
+---@param jwt_header JwtHeader jwt header.
+---@param secret_key string private key passed as secret.
+---@param jwt_encrypted_key string Encrypted key embedded in JWT.
+---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+local function derive_cek_alg_ecdhes_aeskw(keywrap_info, jwt_header, secret_key, jwt_encrypted_key)
+    if type(jwt_header.epk) ~= "table" then
+        return nil, "header field epk must be an object"
+    end
+
+    local intermediate_cek, err = derive_ecdhes(
+        jwt_header.epk,
+        jwt_header.alg,
+        keywrap_info.enc_key_len * 8,
+        secret_key
+    )
+    if not intermediate_cek then
+        return nil, err
+    end
+
+    if type(jwt_encrypted_key) ~= "string" then
+        return nil, "jwt encrypted key is missing or invalid format"
+    end
+
+    ---@cast intermediate_cek string
+    return derive_cek_alg_aeskw(keywrap_info, intermediate_cek, jwt_encrypted_key)
 end
 
 ---Decrypt payload using AES-CBC family algs and verify given AEAD tag.
@@ -840,9 +893,16 @@ function _M.decrypt(jwt_token, secret, options)
     if jwt_header.alg == "dir" then
         cek = secret
     elseif jwt_header.alg == "A128KW" or jwt_header.alg == "A192KW" or jwt_header.alg == "A256KW" then
-        cek, err = derive_cek_alg_aes_kw(keywrap_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
+        cek, err = derive_cek_alg_aeskw(keywrap_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
     elseif jwt_header.alg == "ECDH-ES" then
-        cek, err = derive_cek_alg_ecdh_es(decrypt_alg_table[jwt_header.enc], jwt_header, secret)
+        cek, err = derive_cek_alg_ecdhes(decrypt_alg_table[jwt_header.enc], jwt_header, secret)
+    elseif jwt_header.alg == "ECDH-ES+A128KW" or jwt_header.alg == "ECDH-ES+A192KW" or jwt_header.alg == "ECDH-ES+A256KW" then
+        cek, err = derive_cek_alg_ecdhes_aeskw(
+            keywrap_alg_table[string.sub(jwt_header.alg, 9)],
+            jwt_header,
+            secret,
+            jwt_encrypted_key
+        )
     else
         return nil, "unknown or unsupported jwt alg: " .. jwt_header.alg
     end

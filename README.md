@@ -30,6 +30,7 @@ JWT verification library for OpenResty.
 - [Run tests](#run-tests)
   - [Setup](#setup)
   - [Run](#run)
+- [Run benchmarks](#run-benchmarks)
 
 ## Description
 
@@ -586,3 +587,59 @@ Install openresty: see https://openresty.org/en/linux-packages.html
 export PATH=/usr/local/openresty/nginx/sbin:$PATH
 prove -r t
 ```
+
+## Run benchmarks
+
+The testsuite `Test::Nginx` has built-in benchmarking integration with [weighttp](https://redmine.lighttpd.net/projects/weighttp/wiki).
+
+### Install weighttp
+
+Source install:
+```bash
+cd /opt
+sudo git clone https://github.com/lighttpd/weighttp.git --single-branch --depth 1
+sudo chown -R "$USER" weighttp
+cd ./weighttp
+sh autogen.sh
+./configure --prefix=/opt/weighttp
+make
+make install
+```
+
+Add to PATH:
+```bash
+echo 'export PATH="$PATH:/opt/weighttp/bin"' >> "/home/$USER/.bashrc"
+exec bash
+weighttp -V
+```
+
+## Increase `sysctl` limits
+
+If you plant to stress test the library, you may need to increase system limits.
+
+```bash
+cat > /etc/sysctl.d/openresty-benchmarks.conf << EOF
+net.ipv4.ip_local_port_range=2048 65535
+
+net.ipv4.tcp_tw_reuse=1
+
+net.core.netdev_max_backlog=2000
+net.ipv4.tcp_max_syn_backlog=2048
+EOF
+
+# apply changes
+sudo sysctl -p /etc/sysctl.d/openresty-benchmarks.conf
+```
+
+## Launch tests
+
+I've created some pseudo-real world scenarios inside the `benchmarks` folder.
+
+```bash
+# for more info about syntax: https://openresty.gitbooks.io/programming-openresty/content/testing/test-modes.html
+export TEST_NGINX_BENCHMARK='50000 10'
+prove -r ./benchmarks
+```
+
+By default, only 1 nginx worker and 1 CPU core will be used to perform the benchmarks. To increase the worker limits,
+change the `workers(1);` directive inside the `.t` files and re-run the benchmark.

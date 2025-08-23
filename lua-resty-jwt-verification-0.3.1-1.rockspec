@@ -29,6 +29,8 @@ build = {
    modules = {
       ["resty.jwt-verification"] = "lib/resty/jwt-verification.lua",
       ["resty.jwt-verification-jwks"] = "lib/resty/jwt-verification-jwks.lua",
-      ["resty.jwt-verification-jwks-cache-local"] = "lib/resty/jwt-verification-jwks-cache-local.lua"
+      ["resty.jwt-verification-jwks-cache-local"] = "lib/resty/jwt-verification-jwks-cache-local.lua",
+      ["resty.jwt-verification.binutils"] = "lib/resty/jwt-verification/binutils.lua",
+      ["resty.jwt-verification.crypto"] = "lib/resty/jwt-verification/crypto.lua"
    }
 }

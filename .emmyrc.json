@@ -8,5 +8,8 @@
   },
   "strict": {
     "arrayIndex": true
+  },
+  "workspace": {
+    "library": ["./lib"]
   }
 }

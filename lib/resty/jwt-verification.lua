@@ -5,10 +5,14 @@ local hmac = require("resty.openssl.hmac")
 local cipher = require("resty.openssl.cipher")
 local table_isempty = require("table.isempty")
 local table_isarray = require("table.isarray")
+local table_clone = require("table.clone")
+local binutils = require("resty.jwt-verification.binutils")
+local crypto = require("resty.jwt-verification.crypto")
 
 local _M = { _VERSION = "0.3.1" }
 
----@alias JwtHeader { alg: string, enc: string|nil, crit: string|table|nil, cty: string|nil }
+---@alias JwtHeaderJweEpk { x: string, y: string|nil, crv: string, kty: string, apu: string|nil, apv: string|nil }
+---@alias JwtHeader { alg: string, enc: string|nil, crit: string|table|nil, cty: string|nil, epk: JwtHeaderJweEpk|nil }
 ---@alias JwtResult { header: JwtHeader, payload: table }
 
 ---@alias JwtShaMdAlg "sha256"|"sha384"|"sha512" supported sha types.
@@ -47,7 +51,7 @@ local keywrap_alg_table = {
     },
 }
 
----@alias JwtDecryptAlgInfo { aes: boolean, hmac: JwtShaMdAlg|nil, mac_key_len: integer, enc_key_len: integer }
+---@alias JwtDecryptAlgInfo { aes: string, hmac: JwtShaMdAlg|nil, mac_key_len: integer, enc_key_len: integer }
 ---@class (exact) JwtDecryptAlgTable
 ---@field [string] JwtDecryptAlgInfo
 local decrypt_alg_table = {
@@ -116,6 +120,7 @@ local verify_default_options = {
         ["RS256"]="RS256", ["RS384"]="RS384", ["RS512"]="RS512",
         ["ES256"]="ES256", ["ES384"]="ES384", ["ES512"]="ES512",
         ["PS256"]="PS256", ["PS384"]="PS384", ["PS512"]="PS512",
+        ["Ed25519"]="Ed25519", ["Ed448"]="Ed448",
     },
     typ = nil,
     issuer = nil,
@@ -150,6 +155,10 @@ local decrypt_default_options = {
     valid_encryption_alg_algorithms = {
         ["A128KW"]="A128KW", ["A192KW"]="A192KW", ["A256KW"]="A256KW",
         ["dir"]="dir",
+        ["ECDH-ES"]="ECDH-ES",
+        ["ECDH-ES+A128KW"]="ECDH-ES+A128KW",
+        ["ECDH-ES+A192KW"]="ECDH-ES+A192KW",
+        ["ECDH-ES+A256KW"]="ECDH-ES+A256KW",
     },
     valid_encryption_enc_algorithms = {
         ["A128CBC-HS256"]="A128CBC-HS256",
@@ -295,6 +304,23 @@ local function rsa_pss_verify(message, signature, public_key_str, md_alg)
     return pk:verify(signature, message, md_alg, pkey.PADDINGS.RSA_PKCS1_PSS_PADDING)
 end
 
+---Verify an existing signature for a message with either Ed25519 or Ed448.
+---@param message string Message which signature belongs to.
+---@param signature string Message's signature.
+---@param public_key_str string Public key used to verify the signature.
+---@return boolean|nil #Whether the signature is valid.
+---@return string|nil err nil on success, error message otherwise.
+local function ed25519_or_ed448_verify(message, signature, public_key_str)
+    local pk, err = pkey.new(public_key_str, {
+        format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
+    })
+    if pk == nil then
+        return nil, "failed initializing openssl with public key: " .. err
+    end
+
+    return pk:verify(signature, message)
+end
+
 ---Verify jwt aud claims against a list of valid audiences.
 ---@param jwt_audiences table Jwt audiences array.
 ---@param options_audiences table Valid audiences array.
@@ -410,7 +436,7 @@ function _M.verify(jwt_token, secret, options)
     end
 
     if options == nil then
-        options = verify_default_options
+        options = table_clone(verify_default_options)
         options.current_unix_timestamp = ngx.time()
     elseif type(options) ~= "table" then
         return nil, "invalid configuration: parameter options is not a valid table"
@@ -459,7 +485,7 @@ function _M.verify(jwt_token, secret, options)
 
     --- jwe sanity checks ---
 
-    if jwt_header.alg == nil or type(jwt_header.alg) ~= "string" then
+    if type(jwt_header.alg) ~= "string" then
         return nil, "invalid jwt: missing or invalid required string header claim 'alg'"
     end
     if jwt_header.crit ~= nil then
@@ -508,6 +534,13 @@ function _M.verify(jwt_token, secret, options)
         elseif not is_valid then
             return nil, "invalid jwt: signature does not match"
         end
+    elseif jwt_header.alg == "Ed25519" or jwt_header.alg == "Ed448" then
+        local is_valid, err = ed25519_or_ed448_verify(jwt_portion_to_verify, jwt_signature, secret)
+        if is_valid == nil then
+            return nil, "invalid jwt: " .. err
+        elseif not is_valid then
+            return nil, "invalid jwt: signature does not match"
+        end
     elseif jwt_header.alg == "none" then
         return nil, "unsafe jwt with none alg will never be verifiable"
     else
@@ -529,91 +562,189 @@ function _M.verify(jwt_token, secret, options)
     }
 end
 
----Extract CEK for content decryption and mac key for authentication.
----@param enc_info JwtDecryptAlgInfo CEK encryption 'enc' parameters used for key extraction.
----@param secret string CEK decryption secret.
----@return string|nil cek CEK on success, nil otherwise.
----@return string|nil mac_key MAC key on success, nil otherwise.
----@return string|nil err nil on success, error message otherwise.
-local function derive_keys_alg_dir(enc_info, secret)
-    if enc_info == nil then
-        return nil, nil, "unsupported enc in cek calculation"
-    end
-
-    local secret_key_len = enc_info.mac_key_len + enc_info.enc_key_len
-    if #secret ~= secret_key_len then
-        return nil, nil, "secret key has not expected length of " .. secret_key_len
-    end
-
-    local cek = string.sub(secret, enc_info.mac_key_len + 1)
-    local mac_key = string.sub(secret, 1, enc_info.mac_key_len)
-    return cek, mac_key
-end
+local aeskw_shared_iv = ngx.decode_base64("pqampqampqY=")
 
 ---Extract Content Encryption Key (CEK) necessary for later payload decryption
 ---using AES KW family algs.
----@param enc_info JwtKeywrapAlgInfo CEK encryption 'alg' parameters used for key extraction.
+---@param alg_info JwtKeywrapAlgInfo CEK encryption 'alg' parameters used for key extraction.
 ---@param secret string CEK decryption secret.
 ---@param encrypted_key string Encrypted CEK embedded in the jwt but already base64 decoded.
 ---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
-local function derive_cek_alg_aes_kw(enc_info, secret, encrypted_key)
-    if enc_info == nil then
+local function derive_cek_alg_aeskw(alg_info, secret, encrypted_key)
+    if alg_info == nil then
         return nil, "unsupported enc in cek calculation"
     end
 
-    if #secret ~= enc_info.enc_key_len then
-        return nil, "secret key has not expected length of " .. enc_info.enc_key_len
+    if #secret ~= alg_info.enc_key_len then
+        return nil, "secret key expected of length: " .. alg_info.enc_key_len .. " but got: " .. #secret
     end
 
-    local c, err = cipher.new(enc_info.aes)
+    local c, err = cipher.new(alg_info.aes)
     if c == nil then
         return nil, "failed creating openssl cipher: " .. err
     end
 
-    local decrypted_cek, _ = c:decrypt(secret, ngx.decode_base64("pqampqampqY="), encrypted_key)
+    local decrypted_cek, _ = c:decrypt(secret, aeskw_shared_iv, encrypted_key)
     if decrypted_cek == nil then
         return false
     end
     return decrypted_cek
 end
 
----64-bit big-endian representation of string length.
----See https://datatracker.ietf.org/doc/html/rfc7516#appendix-B.3
----Note: this function has been ported from lua-resty-jwt
----@param s string Data.
----@return string #Length of data as string.
-local function binlen(s)
-    local len = 8 * #s
+---Extract Content Encryption Key (CEK) necessary for later payload decryption
+---using ECDH-ES alg.
+---@param epk JwtHeaderJweEpk Public key in JWK format as table, used to DH the CEK.
+---@param alg string alg name used to derive CEK.
+---@param cek_len integer Size of the CEK to extract.
+---@param secret_key string private key passed as secret.
+---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+local function derive_ecdhes(epk, alg, cek_len, secret_key)
+    if epk.kty ~= 'EC' and epk.kty ~= 'OKP' then
+        return nil, "ECDH-ES alg must use either EC or OKP keys, but got: " .. epk.kty
+    end
 
-    ---@diagnostic disable-next-line: param-type-not-match
-    return string.char(len / 0x0100000000000000 % 0x100)
-        .. string.char(len / 0x0001000000000000 % 0x100)
-        .. string.char(len / 0x0000010000000000 % 0x100)
-        .. string.char(len / 0x0000000100000000 % 0x100)
-        .. string.char(len / 0x0000000001000000 % 0x100)
-        .. string.char(len / 0x0000000000010000 % 0x100)
-        .. string.char(len / 0x0000000000000100 % 0x100)
-        .. string.char(len / 0x0000000000000001 % 0x100)
+    local apu = ""
+    if type(epk.apu) == "string" then
+        apu = b64.decode_base64url(epk.apu)
+        if apu == nil then
+            return nil, "failed base64url decoding epk.apu field"
+        end
+    end
+
+    local apv = ""
+    if type(epk.apv) == "string" then
+        apv = b64.decode_base64url(epk.apv)
+        if apv == nil then
+            return nil, "failed base64url decoding epk.apv field"
+        end
+    end
+
+    -- FIXME: find a better way to avoid reserializing epk
+    local epk_str, err = cjson.encode(epk)
+    if not epk_str then
+        return nil, "failed json encoding epk public key: " .. err
+    end
+
+    -- derive keys
+    local private_key, err = pkey.new(secret_key, { format = "*" })
+    if not private_key then
+        return nil, "failed loading private key: " .. err
+    end
+    local public_key, err = pkey.new(epk_str, { format = "JWK" })
+    if not public_key then
+        return nil, "failed loading epk public key: " .. err
+    end
+
+    local shared_secret, err = private_key:derive(public_key)
+    if not shared_secret then
+        return nil, "failed deriving ECDH key: " .. err
+    end
+
+    -- compute kdf
+    local value = {}
+    for _, v in ipairs(binutils.uint32be_array(#alg)) do
+        table.insert(value, v)
+    end
+    for i = 1, #alg do
+        table.insert(value, string.sub(alg, i, i))
+    end
+    for _, v in ipairs(binutils.uint32be_array(#apu)) do
+        table.insert(value, v)
+    end
+    for i = 1, #apu do
+        table.insert(value, string.sub(apu, i, i))
+    end
+    for _, v in ipairs(binutils.uint32be_array(#apv)) do
+        table.insert(value, v)
+    end
+    for i = 1, #apv do
+        table.insert(value, string.sub(apv, i, i))
+    end
+    for _, v in ipairs(binutils.uint32be_array(cek_len)) do
+        table.insert(value, v)
+    end
+
+    return crypto.concat_kdf(shared_secret, cek_len, table.concat(value))
+end
+
+---Extract Content Encryption Key (CEK) necessary for later payload decryption
+---using ECDH-ES alg.
+---@param enc_info JwtDecryptAlgInfo Decryption algorithm's specific settings.
+---@param jwt_header JwtHeader jwt header.
+---@param secret_key string private key passed as secret.
+---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+local function derive_cek_alg_ecdhes(enc_info, jwt_header, secret_key)
+    if type(jwt_header.epk) ~= "table" then
+        return nil, "header field epk must be an object"
+    end
+
+    ---@cast jwt_header.enc string
+    return derive_ecdhes(
+        jwt_header.epk,
+        jwt_header.enc,
+        (enc_info.enc_key_len + enc_info.mac_key_len) * 8,
+        secret_key
+    )
+end
+
+---Extract Content Encryption Key (CEK) necessary for later payload decryption
+---using ECDH-ES and AES key wrap family algs.
+---@param keywrap_info JwtKeywrapAlgInfo AES key wrap algorithm's specific settings.
+---@param jwt_header JwtHeader jwt header.
+---@param secret_key string private key passed as secret.
+---@param jwt_encrypted_key string Encrypted key embedded in JWT.
+---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+local function derive_cek_alg_ecdhes_aeskw(keywrap_info, jwt_header, secret_key, jwt_encrypted_key)
+    if type(jwt_header.epk) ~= "table" then
+        return nil, "header field epk must be an object"
+    end
+
+    local intermediate_cek, err = derive_ecdhes(
+        jwt_header.epk,
+        jwt_header.alg,
+        keywrap_info.enc_key_len * 8,
+        secret_key
+    )
+    if not intermediate_cek then
+        return nil, err
+    end
+
+    if type(jwt_encrypted_key) ~= "string" then
+        return nil, "jwt encrypted key is missing or invalid format"
+    end
+
+    ---@cast intermediate_cek string
+    return derive_cek_alg_aeskw(keywrap_info, intermediate_cek, jwt_encrypted_key)
 end
 
 ---Decrypt payload using AES-CBC family algs and verify given AEAD tag.
----@param enc_info table Decryption algorithm's specific settings.
+---@param enc_info JwtDecryptAlgInfo Decryption algorithm's specific settings.
 ---@param cek string CEK used for ciphertext decryption.
----@param mac_key string used for ciphertext authentication.
 ---@param ciphertext string Payload to decrypt.
 ---@param iv string Initialization Vector used during decryption.
 ---@param aead_aad string AEAD tag to verify.
 ---@param aead_tag string AEAD computed tag to verify against.
 ---@return string|boolean|nil #Decrypted payload on success, false on failed decryption, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
-local function decrypt_content_cbc(enc_info, cek, mac_key, ciphertext, iv, aead_aad, aead_tag)
+local function decrypt_content_cbc(enc_info, cek, ciphertext, iv, aead_aad, aead_tag)
     local c, err = cipher.new(enc_info.aes)
     if c == nil then
         return nil, "failed creating openssl cipher: " .. err
     end
 
-    local mac_data = table.concat({aead_aad, iv, ciphertext, binlen(aead_aad)})
+    local secret_key_len = enc_info.mac_key_len + enc_info.enc_key_len
+    if #cek ~= secret_key_len then
+        return nil, "secret key expected of length: " .. secret_key_len .. " but got: " .. #cek
+    end
+
+    local enc_key = string.sub(cek, enc_info.mac_key_len + 1)
+    local mac_key = string.sub(cek, 1, enc_info.mac_key_len)
+
+    local mac_data = table.concat({aead_aad, iv, ciphertext, binutils.uint64be(#aead_aad)})
     local computed_mac, err = hmac_sign(mac_data, mac_key, enc_info.hmac)
     if computed_mac == nil then
         return nil, "failed computing aead tag: " .. err
@@ -623,11 +754,11 @@ local function decrypt_content_cbc(enc_info, cek, mac_key, ciphertext, iv, aead_
     -- FIXME: find a way to do this comparison in constant time
     if computed_tag ~= aead_tag then
         return false, "aead tag verification does not match"
-        --return false, "aead tag verification does not match: '" .. computed_tag .. "' != '" .. aead_tag .. "' mac_key: " .. mac_key
+        --return false, "aead tag verification does not match: '" .. computed_tag .. "' != '" .. aead_tag .. "' enc_key: " .. enc_key .. "' mac_key: " .. mac_key
     end
 
     -- cipher:decrypt(key, iv?, s, no_padding?, aead_aad?, aead_tag?)
-    local decrypted_payload, _ = c:decrypt(cek, iv, ciphertext, false)
+    local decrypted_payload, _ = c:decrypt(enc_key, iv, ciphertext, false)
     if decrypted_payload == nil then
         return false
     end
@@ -635,7 +766,7 @@ local function decrypt_content_cbc(enc_info, cek, mac_key, ciphertext, iv, aead_
 end
 
 ---decrypt_content_gcm Decrypt payload using AES-GCM family algs and verify given AEAD tag.
----@param enc_info table Decryption algorithm's specific settings.
+---@param enc_info JwtDecryptAlgInfo Decryption algorithm's specific settings.
 ---@param cek string CEK used for ciphertext decryption.
 ---@param ciphertext string Payload to decrypt.
 ---@param iv string Initialization Vector used during decryption.
@@ -669,7 +800,7 @@ function _M.decrypt(jwt_token, secret, options)
     end
 
     if options == nil then
-        options = decrypt_default_options
+        options = table_clone(decrypt_default_options)
         options.current_unix_timestamp = ngx.time()
     elseif type(options) ~= "table" then
         return nil, "invalid configuration: parameter options is not a valid table"
@@ -733,10 +864,10 @@ function _M.decrypt(jwt_token, secret, options)
 
     --- jwe sanity checks ---
 
-    if jwt_header.alg == nil or type(jwt_header.alg) ~= "string" then
+    if type(jwt_header.alg) ~= "string" then
         return nil, "invalid jwt: missing or invalid required string header claim 'alg'"
     end
-    if jwt_header.enc == nil or type(jwt_header.enc) ~= "string" then
+    if type(jwt_header.enc) ~= "string" then
         return nil, "invalid jwt:  or invalid required string header claim 'enc'"
     end
     if jwt_header.zip ~= nil then
@@ -758,36 +889,40 @@ function _M.decrypt(jwt_token, secret, options)
         return nil, "jwt validation failed: encryption algorithm 'enc' is not enabled: " .. jwt_header.enc
     end
 
-    local cek, mac_key, err
+    ---@type string|boolean|nil, string|nil
+    local cek, err
     if jwt_header.alg == "dir" then
-        cek, mac_key, err = derive_keys_alg_dir(decrypt_alg_table[jwt_header.enc], secret)
+        cek = secret
     elseif jwt_header.alg == "A128KW" or jwt_header.alg == "A192KW" or jwt_header.alg == "A256KW" then
-        cek, err = derive_cek_alg_aes_kw(keywrap_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
-        if cek == nil then
-            return nil, "invalid jwt: " .. err
-        elseif not cek then
-            return nil, "invalid jwt: failed decrypting cek"
-        end
-        ---@cast cek string
-        cek, mac_key, err = derive_keys_alg_dir(decrypt_alg_table[jwt_header.enc], cek)
+        cek, err = derive_cek_alg_aeskw(keywrap_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
+    elseif jwt_header.alg == "ECDH-ES" then
+        cek, err = derive_cek_alg_ecdhes(decrypt_alg_table[jwt_header.enc], jwt_header, secret)
+    elseif jwt_header.alg == "ECDH-ES+A128KW" or jwt_header.alg == "ECDH-ES+A192KW" or jwt_header.alg == "ECDH-ES+A256KW" then
+        cek, err = derive_cek_alg_ecdhes_aeskw(
+            keywrap_alg_table[string.sub(jwt_header.alg, 9)],
+            jwt_header,
+            secret,
+            jwt_encrypted_key
+        )
     else
         return nil, "unknown or unsupported jwt alg: " .. jwt_header.alg
     end
-    if cek == nil or mac_key == nil then
+    if cek == nil then
         return nil, "invalid jwt: " .. err
+    elseif not cek then
+        return nil, "invalid jwt: failed decrypting cek"
     end
 
-    local aad = jwt_sections[1]
+    ---@cast cek string
 
     local decrypted_payload
     if jwt_header.enc == "A128CBC-HS256" or jwt_header.enc == "A192CBC-HS384" or jwt_header.enc == "A256CBC-HS512" then
         decrypted_payload, err = decrypt_content_cbc(
             decrypt_alg_table[jwt_header.enc],
             cek,
-            mac_key,
             jwt_ciphertext,
             jwt_iv,
-            aad,
+            jwt_sections[1],
             jwt_auth_tag
         )
     elseif jwt_header.enc == "A128GCM" or jwt_header.enc == "A192GCM" or jwt_header.enc == "A256GCM" then
@@ -796,7 +931,7 @@ function _M.decrypt(jwt_token, secret, options)
             cek,
             jwt_ciphertext,
             jwt_iv,
-            aad,
+            jwt_sections[1],
             jwt_auth_tag
         )
     else
@@ -806,7 +941,7 @@ function _M.decrypt(jwt_token, secret, options)
         return nil, "invalid jwt: " .. err
     elseif not decrypted_payload then
         return nil, "invalid jwt: failed decrypting jwt payload"
-        --return nil, "invalid jwt: failed decrypting jwt payload: " .. err .. "; cek: " ..  cek
+        --return nil, "invalid jwt: failed decrypting jwt payload: " .. (err or "no-error") .. "; cek: " ..  cek .. "; cek len: " .. #cek
     end
 
     -- jwt verify claims --

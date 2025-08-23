@@ -1,11 +1,8 @@
-use Test::Nginx::Socket::Lua;
+use Test::Nginx::Socket::Lua 'no_plan';
 
 our $HttpConfig = <<'_EOC_';
     lua_package_path 'lib/?.lua;;';
 _EOC_
-
-repeat_each(1);
-plan tests => repeat_each() * 3 * blocks();
 
 no_shuffle();
 no_long_string();
@@ -21,6 +18,10 @@ __DATA__
             local jwt = require "resty.jwt-verification"
             local token = "eyJhbGciOiJFUzI1NiJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NDkwNzV9.JCCaBLnjxFzfigpLEocicSHbr13Dv6NS0FMVae0hhaHpIwqfvijUwHB5r51DQpnOpPEpE9Y3BOW2Gi_Hu0QAUA"
             local decoded_token, err = jwt.verify(token, "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5tLj4FVQLT0i2k2++Ekh+YhojZLz\n0cBsUH1T89qUbusGeS6xRKdAcDBqd23IsdxFF5tnGubORP4YvTNq76UelA==\n-----END PUBLIC KEY-----", nil)
+            if not decoded_token then
+                ngx.say(err)
+                return
+            end
             ngx.say(decoded_token.header.alg)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)
@@ -44,6 +45,10 @@ nil
             local jwt = require "resty.jwt-verification"
             local token = "eyJhbGciOiJFUzI1NiJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY3NDkwNzV9.JCCaBLnjxFzfigpLEocicSHbr13Dv6NS0FMVae0hhaHpIwqfvijUwHB5r51DQpnOpPEpE9Y3BOW2Gi_Hu0QAUA"
             local decoded_token, err = jwt.verify(token, '{"kty":"EC","x":"5tLj4FVQLT0i2k2--Ekh-YhojZLz0cBsUH1T89qUbus","y":"BnkusUSnQHAwandtyLHcRRebZxrmzkT-GL0zau-lHpQ","crv":"P-256"}', nil)
+            if not decoded_token then
+                ngx.say(err)
+                return
+            end
             ngx.say(decoded_token.header.alg)
             ngx.say(decoded_token.payload.foo)
             ngx.say(err)

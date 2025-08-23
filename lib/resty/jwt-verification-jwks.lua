@@ -211,7 +211,7 @@ function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)
         end
 
         return jwt.verify(jwt_token, decoded_key, jwt_options)
-    elseif jwk_to_use.kty == "RSA" or jwk_to_use.kty == "EC" then
+    elseif jwk_to_use.kty == "RSA" or jwk_to_use.kty == "EC" or jwk_to_use.kty == "OKP" then
         -- jwk contains an asymmetric key.
 
         -- openssl can verify a signature from a jwk directly. We need, however, to pass it as a json string.

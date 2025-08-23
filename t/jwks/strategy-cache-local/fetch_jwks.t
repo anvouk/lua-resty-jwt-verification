@@ -1,12 +1,9 @@
-use Test::Nginx::Socket::Lua;
+use Test::Nginx::Socket::Lua 'no_plan';
 
 our $HttpConfig = <<'_EOC_';
     lua_package_path 'lib/?.lua;;';
     lua_shared_dict resty_jwt_verification_cache_jwks 10m;
 _EOC_
-
-repeat_each(1);
-plan tests => repeat_each() * 3 * blocks();
 
 no_shuffle();
 no_long_string();

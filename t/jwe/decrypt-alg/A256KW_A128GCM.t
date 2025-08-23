@@ -1,11 +1,8 @@
-use Test::Nginx::Socket::Lua;
+use Test::Nginx::Socket::Lua 'no_plan';
 
 our $HttpConfig = <<'_EOC_';
     lua_package_path 'lib/?.lua;;';
 _EOC_
-
-repeat_each(1);
-plan tests => repeat_each() * 3 * blocks();
 
 no_shuffle();
 no_long_string();
@@ -13,14 +10,14 @@ run_tests();
 
 __DATA__
 
-=== TEST 1: dir + A192CBC-HS384 ok
+=== TEST 1: A256KW + A128GCM ok
 --- http_config eval: $::HttpConfig
 --- config
     location = /t {
         content_by_lua_block {
             local jwt = require "resty.jwt-verification"
-            local token = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTkyQ0JDLUhTMzg0In0..SSH3pnQzSjLuEmGXLfEaMA.Zgsi_oYKBalIP-D-2nnM_w.n8MmgKMidxumLT3_odHYhnazzP53_xwm"
-            local decoded_token, err = jwt.decrypt(token, "superSecretKey12superSecretKey12superSecretKey12", nil)
+            local token = "eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMTI4R0NNIn0.QLHAUFjbfcCi8E2oWGtqJa3zLzYes0UZ.76u0WRV84LhElJDf.-jGd1Holl1qO9Mkacw.R0LcWFil4PFW00kplKY4Sg"
+            local decoded_token, err = jwt.decrypt(token, "superSecretKey12superSecretKey12", nil)
             if decoded_token ~= nil then
                 ngx.say(decoded_token.header.alg .. "|" .. decoded_token.header.enc)
                 ngx.say(decoded_token.payload.foo)
@@ -34,21 +31,21 @@ __DATA__
 --- request
     GET /t
 --- response_body
-dir|A192CBC-HS384
+A256KW|A128GCM
 bar
 nil
 --- error_code: 200
 --- no_error_log
 [error]
 
-=== TEST 2: dir + A192CBC-HS384 error, wrong secret
+=== TEST 2: A256KW + A128GCM error, wrong secret
 --- http_config eval: $::HttpConfig
 --- config
     location = /t {
         content_by_lua_block {
             local jwt = require "resty.jwt-verification"
-            local token = "eyJhbGciOiJkaXIiLCJlbmMiOiJBMTkyQ0JDLUhTMzg0In0..SSH3pnQzSjLuEmGXLfEaMA.Zgsi_oYKBalIP-D-2nnM_w.n8MmgKMidxumLT3_odHYhnazzP53_xwm"
-            local decoded_token, err = jwt.decrypt(token, "superSecretKey12superSecretKey12superSecretKey19", nil)
+            local token = "eyJhbGciOiJBMjU2S1ciLCJlbmMiOiJBMTI4R0NNIn0.QLHAUFjbfcCi8E2oWGtqJa3zLzYes0UZ.76u0WRV84LhElJDf.-jGd1Holl1qO9Mkacw.R0LcWFil4PFW00kplKY4Sg"
+            local decoded_token, err = jwt.decrypt(token, "superSecretKey12superSecretKey99", nil)
             if decoded_token ~= nil then
                 ngx.say(decoded_token.header.alg .. "|" .. decoded_token.header.enc)
                 ngx.say(decoded_token.payload.foo)
@@ -64,8 +61,7 @@ nil
 --- response_body
 nil
 nil
-invalid jwt: failed decrypting jwt payload
+invalid jwt: failed decrypting cek
 --- error_code: 200
 --- no_error_log
 [error]
-

@@ -164,8 +164,10 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |        alg         |    Implemented     | JOSE Implementation Requirements | Requirements  |
 |:------------------:|:------------------:|:--------------------------------:|:-------------:|
 |       RSA1_5       |        :x:         |           Recommended-           |               |
-|      RSA-OAEP      |        :x:         |           Recommended+           |               |
-|    RSA-OAEP-256    |        :x:         |             Optional             |               |
+|      RSA-OAEP      | :white_check_mark: |           Recommended+           |               |
+|    RSA-OAEP-256    | :white_check_mark: |             Optional             |               |
+|    RSA-OAEP-384    | :white_check_mark: |             Optional             |               |
+|    RSA-OAEP-512    | :white_check_mark: |             Optional             |               |
 |       A128KW       | :white_check_mark: |           Recommended            | *OpenSSL 3.0+ |
 |       A192KW       | :white_check_mark: |             Optional             | *OpenSSL 3.0+ |
 |       A256KW       | :white_check_mark: |           Recommended            | *OpenSSL 3.0+ |
@@ -207,7 +209,6 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 ## Planned missing features
 
 This is a list of missing features I'd like to implement when given enough time:
-- Implement JWE validation with at least 1 asymmetric `alg`.
 - Nested JWT (i.e. JWT in JWE).
 - JWKS Redis cache strategy.
 - Automatic JWKS validation for JWE.
@@ -342,6 +343,8 @@ Default values for `options` fields:
 ```lua
 local decrypt_default_options = {
     valid_encryption_alg_algorithms = {
+        ["RSA-OAEP"]="RSA-OAEP",
+        ["RSA-OAEP-256"]="RSA-OAEP-256", ["RSA-OAEP-384"]="RSA-OAEP-384", ["RSA-OAEP-512"]="RSA-OAEP-512",
         ["A128KW"]="A128KW", ["A192KW"]="A192KW", ["A256KW"]="A256KW",
         ["dir"]="dir",
         ["ECDH-ES"]="ECDH-ES",

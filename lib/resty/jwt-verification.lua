@@ -701,9 +701,15 @@ local function derive_ecdhes(epk, alg, cek_len, secret_key)
     if not private_key then
         return nil, "failed loading private key: " .. err
     end
+    if not private_key:is_private() then
+        return nil, "failed loading private key: got a public key when expecting a private one"
+    end
     local public_key, err = pkey.new(epk_str, { format = "JWK" })
     if not public_key then
         return nil, "failed loading epk public key: " .. err
+    end
+    if public_key:is_private() then
+        return nil, "failed loading epk public key: got a private key when expecting a public one"
     end
 
     local shared_secret, err = private_key:derive(public_key)

@@ -1,22 +1,26 @@
 local bit = require("bit")
 
+local bit_band = bit.band
+local bit_rshift = bit.rshift
+local string_char = string.char
+
 local _M = {}
 
 ---64-bit big-endian representation of number.
 ---@param value integer value to convert.
 ---@return string result unsigned 64-bit big-endian string representation of n.
 function _M.uint64be(value)
-    local hi = bit.rshift(value, 29)
+    local hi = bit_rshift(value, 29)
     local lo = bit.lshift(value, 3)
-    return string.char(
-        bit.rshift(hi, 24),
-        bit.rshift(hi, 16),
-        bit.rshift(hi, 8),
-        bit.band(hi, 0xff),
-        bit.rshift(lo, 24),
-        bit.rshift(lo, 16),
-        bit.rshift(lo, 8),
-        bit.band(lo, 0xff)
+    return string_char(
+        bit_band(bit_rshift(hi, 24), 0xff),
+        bit_band(bit_rshift(hi, 16), 0xff),
+        bit_band(bit_rshift(hi, 8), 0xff),
+        bit_band(hi, 0xff),
+        bit_band(bit_rshift(lo, 24), 0xff),
+        bit_band(bit_rshift(lo, 16), 0xff),
+        bit_band(bit_rshift(lo, 8), 0xff),
+        bit_band(lo, 0xff)
     )
 end
 
@@ -24,11 +28,11 @@ end
 ---@param value integer value to convert.
 ---@return string result unsigned 32-bit big-endian string representation of n.
 function _M.uint32be(value)
-    return string.char(
-        bit.rshift(value, 24),
-        bit.rshift(value, 16),
-        bit.rshift(value, 8),
-        bit.band(value, 0xff)
+    return string_char(
+        bit_rshift(value, 24),
+        bit_rshift(value, 16),
+        bit_rshift(value, 8),
+        bit_band(value, 0xff)
     )
 end
 
@@ -37,10 +41,10 @@ end
 ---@return table result unsigned 32-bit big-endian string representation of n as table array.
 function _M.uint32be_array(value)
     return {
-        string.char(bit.rshift(value, 24)),
-        string.char(bit.rshift(value, 16)),
-        string.char(bit.rshift(value, 8)),
-        string.char(bit.band(value, 0xff)),
+        string_char(bit_rshift(value, 24)),
+        string_char(bit_rshift(value, 16)),
+        string_char(bit_rshift(value, 8)),
+        string_char(bit_band(value, 0xff)),
     }
 end
 

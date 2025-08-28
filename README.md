@@ -14,7 +14,6 @@ JWT verification library for OpenResty.
   - [JWS Verification](#jws-verification)
   - [JWE Decryption](#jwe-decryption)
   - [JWKS retrieval cache strategies](#jwks-retrieval-cache-strategies)
-- [Planned missing features](#planned-missing-features)
 - [JWT verification usage](#jwt-verification-usage)
   - [jwt.decode_header_unsafe](#jwtdecode_header_unsafe)
   - [jwt.verify](#jwtverify)
@@ -205,12 +204,6 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |:-------------------:|:------------------:|
 |      no cache       | :white_check_mark: |
 | local (shared_dict) | :white_check_mark: |
-|        redis        |        :x:         |
-
-## Planned missing features
-
-This is a list of missing features I'd like to implement when given enough time:
-- JWKS Redis cache strategy.
 
 ## JWT verification usage
 

@@ -33,6 +33,25 @@ local md_alg_table = {
     ["PS512"] = "sha512",
 }
 
+---@alias JwtRsaOaepHash "sha1"|"sha256"|"sha384"|"sha512" supported sha types.
+---@alias JwtRsaOaepAlgInfo { hash: JwtRsaOaepHash }
+---@class (exact) JwtRsaOaepAlgTable
+---@field [string] JwtRsaOaepAlgInfo
+local rsaoaep_alg_table = {
+    ["RSA-OAEP"] = {
+        hash = "sha1",
+    },
+    ["RSA-OAEP-256"] = {
+        hash = "sha256",
+    },
+    ["RSA-OAEP-384"] = {
+        hash = "sha384",
+    },
+    ["RSA-OAEP-512"] = {
+        hash = "sha512",
+    },
+}
+
 ---@alias JwtKeywrapAlgInfo { aes: string, enc_key_len: integer }
 ---@class (exact) JwtKeywrapAlgTable
 ---@field [string] JwtKeywrapAlgInfo
@@ -49,6 +68,14 @@ local keywrap_alg_table = {
         aes = "aes256-wrap",
         enc_key_len = 32,
     },
+}
+
+---@class (exact) JwtEcdhesKeywrapAlgTable
+---@field [string] JwtKeywrapAlgInfo
+local ecdhes_aeskw_alg_table = {
+    ["ECDH-ES+A128KW"] = keywrap_alg_table["A128KW"],
+    ["ECDH-ES+A192KW"] = keywrap_alg_table["A192KW"],
+    ["ECDH-ES+A256KW"] = keywrap_alg_table["A256KW"],
 }
 
 ---@alias JwtDecryptAlgInfo { aes: string, hmac: JwtShaMdAlg|nil, mac_key_len: integer, enc_key_len: integer }
@@ -153,6 +180,8 @@ local verify_default_options = {
 ---verified after it already expired. Set to 0 to disable.
 local decrypt_default_options = {
     valid_encryption_alg_algorithms = {
+        ["RSA-OAEP"]="RSA-OAEP",
+        ["RSA-OAEP-256"]="RSA-OAEP-256", ["RSA-OAEP-384"]="RSA-OAEP-384", ["RSA-OAEP-512"]="RSA-OAEP-512",
         ["A128KW"]="A128KW", ["A192KW"]="A192KW", ["A256KW"]="A256KW",
         ["dir"]="dir",
         ["ECDH-ES"]="ECDH-ES",
@@ -562,10 +591,50 @@ function _M.verify(jwt_token, secret, options)
     }
 end
 
+---Decrypt a ciphertext using RSA-OAEP.
+---@param message string Ciphertext to decrypt.
+---@param private_key_str string Private key to use for decryption.
+---@param oaep_hash JwtRsaOaepHash The digest used for the OAEP hash function.
+---@return string|nil plaintext Plaintext on success, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+local function rsaoaep_decrypt(message, private_key_str, oaep_hash)
+    local pk, err = pkey.new(private_key_str, {
+        format = "*", -- choice of "PEM", "DER", "JWK" or "*" for auto detect
+    })
+    if pk == nil then
+        return nil, "failed initializing openssl with private key: " .. err
+    end
+
+    if not pk:is_private() then
+        return nil, "RSA OAEP decryption requires a private key, but got a public one"
+    end
+    -- TODO: uncomment when updating resty-openssl to >= 1.6.0
+    --if pk:get_size() < 256 then
+    --    return nil, "RSA OAEP decryption requires modulus of at least 2048 bits but got: " .. (pk:get_size() * 8)
+    --end
+
+    return pk:decrypt(message, pkey.PADDINGS.RSA_PKCS1_OAEP_PADDING, { oaep_md = oaep_hash })
+end
+
+---Extract Content Encryption Key (CEK) necessary for later payload decryption
+---using RSA-OAEP family algs.
+---@param rsaoaep_info JwtRsaOaepAlgInfo RSA-OAEP alg info.
+---@param secret string Private key passed as secret.
+---@param encrypted_key string Encrypted CEK embedded in the jwt but already base64 decoded.
+---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+local function derive_cek_alg_rsaoaep(rsaoaep_info, secret, encrypted_key)
+    return rsaoaep_decrypt(
+        encrypted_key,
+        secret,
+        rsaoaep_info.hash
+    )
+end
+
 local aeskw_shared_iv = ngx.decode_base64("pqampqampqY=")
 
 ---Extract Content Encryption Key (CEK) necessary for later payload decryption
----using AES KW family algs.
+---using AES-KW family algs.
 ---@param alg_info JwtKeywrapAlgInfo CEK encryption 'alg' parameters used for key extraction.
 ---@param secret string CEK decryption secret.
 ---@param encrypted_key string Encrypted CEK embedded in the jwt but already base64 decoded.
@@ -597,7 +666,7 @@ end
 ---@param epk JwtHeaderJweEpk Public key in JWK format as table, used to DH the CEK.
 ---@param alg string alg name used to derive CEK.
 ---@param cek_len integer Size of the CEK to extract.
----@param secret_key string private key passed as secret.
+---@param secret_key string Private key passed as secret.
 ---@return string|boolean|nil cek CEK on success, false on failed decryption, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
 local function derive_ecdhes(epk, alg, cek_len, secret_key)
@@ -632,9 +701,15 @@ local function derive_ecdhes(epk, alg, cek_len, secret_key)
     if not private_key then
         return nil, "failed loading private key: " .. err
     end
+    if not private_key:is_private() then
+        return nil, "failed loading private key: got a public key when expecting a private one"
+    end
     local public_key, err = pkey.new(epk_str, { format = "JWK" })
     if not public_key then
         return nil, "failed loading epk public key: " .. err
+    end
+    if public_key:is_private() then
+        return nil, "failed loading epk public key: got a private key when expecting a public one"
     end
 
     local shared_secret, err = private_key:derive(public_key)
@@ -893,13 +968,27 @@ function _M.decrypt(jwt_token, secret, options)
     local cek, err
     if jwt_header.alg == "dir" then
         cek = secret
+    elseif jwt_header.alg == "RSA-OAEP" or jwt_header.alg == "RSA-OAEP-256" or jwt_header.alg == "RSA-OAEP-384" or jwt_header.alg == "RSA-OAEP-512" then
+        cek, err = derive_cek_alg_rsaoaep(
+            rsaoaep_alg_table[jwt_header.alg],
+            secret,
+            jwt_encrypted_key
+        )
     elseif jwt_header.alg == "A128KW" or jwt_header.alg == "A192KW" or jwt_header.alg == "A256KW" then
-        cek, err = derive_cek_alg_aeskw(keywrap_alg_table[jwt_header.alg], secret, jwt_encrypted_key)
+        cek, err = derive_cek_alg_aeskw(
+            keywrap_alg_table[jwt_header.alg],
+            secret,
+            jwt_encrypted_key
+        )
     elseif jwt_header.alg == "ECDH-ES" then
-        cek, err = derive_cek_alg_ecdhes(decrypt_alg_table[jwt_header.enc], jwt_header, secret)
+        cek, err = derive_cek_alg_ecdhes(
+            decrypt_alg_table[jwt_header.enc],
+            jwt_header,
+            secret
+        )
     elseif jwt_header.alg == "ECDH-ES+A128KW" or jwt_header.alg == "ECDH-ES+A192KW" or jwt_header.alg == "ECDH-ES+A256KW" then
         cek, err = derive_cek_alg_ecdhes_aeskw(
-            keywrap_alg_table[string.sub(jwt_header.alg, 9)],
+            ecdhes_aeskw_alg_table[jwt_header.alg],
             jwt_header,
             secret,
             jwt_encrypted_key

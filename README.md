@@ -26,6 +26,7 @@ JWT verification library for OpenResty.
   - [jwks.set_cache_ttl](#jwksset_cache_ttl)
   - [jwks.fetch_jwks](#jwksfetch_jwks)
   - [jwks.verify_jwt_with_jwks](#jwksverify_jwt_with_jwks)
+  - [jwks.decrypt_jwt_with_jwks](#jwksdecrypt_jwt_with_jwks)
 - [RFCs used as reference](#rfcs-used-as-reference)
 - [Run tests](#run-tests)
   - [Setup](#setup)
@@ -209,9 +210,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 ## Planned missing features
 
 This is a list of missing features I'd like to implement when given enough time:
-- Nested JWT (i.e. JWT in JWE).
 - JWKS Redis cache strategy.
-- Automatic JWKS validation for JWE.
 
 ## JWT verification usage
 
@@ -538,18 +537,15 @@ print(payload) -- '{"keys":[{"alg":"RS256","e":"AQAB","kid":"882503a5fd56e9f734d
 
 ### jwks.verify_jwt_with_jwks
 
-**syntax**: *jwt, err = jwks.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options?)*
+**syntax**: *jwt, err = jwks.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jws_options?)*
 
-Given a jwt_token as a string, verify its signature with JWKS provided by the HTTP service found at jwks_endpoint.
+Given a signed jwt_token as a string, verify its signature with JWKS provided by the HTTP service found at jwks_endpoint.
 
-On success, the decrypted/verified JWT is returned as a lua table, otherwise nil and an error are returned.
+On success, the verified JWT is returned as a lua table, otherwise nil and an error are returned.
 
-The optional parameter `jwt_options` can be passed to configure the token validator when calling [jwt.verify](#jwtverify)
+The optional parameter `jws_options` can be passed to configure the token validator when calling [jwt.verify](#jwtverify)
 after having successfully fetched the JWKS. See [jwt.verify](#jwtverify) respective docs for more info about which options
 can be passed.
-
-> **Note**: As of this document, It's possible to verify any JWS using this method but no JWE: It's in the planned
-> features to implement section.
 
 ```lua
 local jwks = require("resty.jwt-verification-jwks")
@@ -560,6 +556,31 @@ if jwt == nil then
     return
 end
 print(jwt.header.alg)
+print(tostring(jwt.payload))
+```
+
+### jwks.decrypt_jwt_with_jwks
+
+**syntax**: *jwt, err = jwks.decrypt_jwt_with_jwks(jwt_token, jwks_endpoint, jwe_options?)*
+
+Given an encrypted jwt_token as a string, decrypt it with JWKS provided by the HTTP service found at jwks_endpoint.
+
+On success, the decrypted JWT is returned as a lua table, otherwise nil and an error are returned.
+
+The optional parameter `jwe_options` can be passed to configure the token validator when calling [jwt.decrypt](#jwtdecrypt)
+after having successfully fetched the JWKS. See [jwt.decrypt](#jwtdecrypt) respective docs for more info about which options
+can be passed.
+
+```lua
+local jwks = require("resty.jwt-verification-jwks")
+
+jwt, err = jwks.decrypt_jwt_with_jwks("<MY_JWT>", "http://myservice:8888/.well-known/jwks.json", nil)
+if jwt == nil then
+    print("failed decrypting jwt: ", err)
+    return
+end
+print(jwt.header.alg)
+print(jwt.header.enc)
 print(tostring(jwt.payload))
 ```
 

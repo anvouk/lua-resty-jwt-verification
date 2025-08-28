@@ -143,43 +143,35 @@ function _M.fetch_jwks(endpoint)
     return res.body
 end
 
----Verify an asymmetrically signed jwt using jwks from a remote HTTP endpoint.
----@param jwt_token string Raw jwt token.
 ---@param jwks_endpoint string HTTP endpoint from where to fetch jwks.
----@param jwt_options JwtVerifyOptions|nil Configuration used to verify the jwt. See verify in resty.jwt-verification for more info.
----@return JwtResult|nil #Parsed jwt if valid, nil otherwise.
+---@param jwt_header JwtHeader Parsed jwt header as table.
+---@return table|nil #Parsed jwk if found, nil otherwise.
 ---@return string|nil err nil on success, error message otherwise.
-function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)
-    if jwt_token == nil or jwks_endpoint == nil then
-        return nil, "params jwt_token and jwks_endpoint cannot be nil"
-    end
-
-    local unsafe_jwt_header, err = jwt.decode_header_unsafe(jwt_token)
-    if not unsafe_jwt_header then
-        return nil, "failed verifying jwt: " .. err
-    end
-
-    local kid = unsafe_jwt_header.kid
+local function fetch_jwk_for_token(jwks_endpoint, jwt_header)
+    local kid = jwt_header.kid
     if kid == nil then
         -- FIXME: is this actually something worth implementing or just an RFC completeness thing?
-        return nil, "failed verifying jwt: token does not have kid header and this lib does not support this case"
+        return nil, "failed finding jwk: token does not have kid header and this lib does not support this case"
     end
 
     local jwks, err = _M.fetch_jwks(jwks_endpoint)
     if jwks == nil then
-        return nil, "failed verifying jwt: " .. err
+        return nil, "failed finding jwk: " .. err
     end
     ---@type table|nil, string|nil
     jwks, err = cjson.decode(jwks)
     if not jwks then
-        return nil, "failed verifying jwt: invalid json decoded: " .. err
+        return nil, "failed finding jwk: invalid jwks format decoded: " .. err
     end
 
     if jwks.keys == nil or not table_isarray(jwks.keys) then
-        return nil, "failed verifying jwt: jwks invalid format: missing or invalid field 'keys'"
+        return nil, "failed finding jwk: jwks invalid format: missing or invalid field 'keys'"
     end
 
     -- find public jwk used to sign our token
+    -- FIXME: technically, the RFC allows having multiple JWK with the same 'kid' as long as the 'kty' is
+    -- different between each duplicated entry. Since it's also not recommended by the RFC, I'm not going to implement
+    -- it unless someone actually needs it. See https://www.rfc-editor.org/rfc/rfc7517#section-4.5
     local jwk_to_use
     for _, jwk in ipairs(jwks.keys) do
         if jwk.kid == kid then
@@ -191,7 +183,39 @@ function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)
         -- Note: we do not go down the rabbit hole of invalidating the cache and retrying with updated keys.
         -- If It's vital to ensure the cache is not stale, either fine-tune the cache ttl, change cache strategy or
         -- implement the cache invalidation procedure yourself upon jwks rotation.
-        return nil, "failed verifying jwt: could not find jwk with kid: " .. kid
+        return nil, "failed finding jwk: could not find jwk with kid: " .. kid
+    end
+
+    return jwk_to_use
+end
+
+---Verify a signed jwt using jwks from a remote HTTP endpoint.
+---@param jwt_token string Raw jwt token.
+---@param jwks_endpoint string HTTP endpoint from where to fetch jwks.
+---@param jws_options JwtVerifyOptions|nil Configuration used to verify the jwt. See verify in resty.jwt-verification for more info.
+---@return JwtResult|nil #Parsed jwt if valid, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jws_options)
+    if jwt_token == nil or jwks_endpoint == nil then
+        return nil, "params jwt_token and jwks_endpoint cannot be nil"
+    end
+
+    local unsafe_jwt_header, err = jwt.decode_header_unsafe(jwt_token)
+    if not unsafe_jwt_header then
+        return nil, "failed verifying jwt: " .. err
+    end
+
+    if unsafe_jwt_header.enc ~= nil then
+        return nil, "failed verifying jwt: parsed token is a jwe"
+    end
+
+    local jwk_to_use, err = fetch_jwk_for_token(jwks_endpoint, unsafe_jwt_header)
+    if jwk_to_use == nil then
+        return nil, "failed verifying jwt: " .. err
+    end
+
+    if jwk_to_use.use ~= nil and jwk_to_use.use ~= "sig" then
+        return nil, "failed verifying jwt: matching jwk with kid '" .. jwk_to_use.kid .. "' cannot be used for signing"
     end
 
     -- as per https://datatracker.ietf.org/doc/html/rfc7517#section-4.1, kty must be present and well-defined.
@@ -210,7 +234,7 @@ function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)
             return nil, "failed verifying jwt: failed decoding base64url of k"
         end
 
-        return jwt.verify(jwt_token, decoded_key, jwt_options)
+        return jwt.verify(jwt_token, decoded_key, jws_options)
     elseif jwk_to_use.kty == "RSA" or jwk_to_use.kty == "EC" or jwk_to_use.kty == "OKP" then
         -- jwk contains an asymmetric key.
 
@@ -221,7 +245,69 @@ function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jwt_options)
             return nil, "failed verifying jwt: failed jsonify jwk: " .. err
         end
 
-        return jwt.verify(jwt_token, jwk_to_use, jwt_options)
+        return jwt.verify(jwt_token, jwk_to_use, jws_options)
+    else
+        return nil, "failed verifying jwt: unknown or unsupported kty: " .. jwk_to_use.kty
+    end
+end
+
+---Decrypt a jwt using jwks from a remote HTTP endpoint.
+---@param jwt_token string Raw jwt token.
+---@param jwks_endpoint string HTTP endpoint from where to fetch jwks.
+---@param jwe_options JwtDecryptOptions|nil Configuration used to verify the jwt. See verify in resty.jwt-verification for more info.
+---@return JwtResult|nil #Parsed jwt if valid, nil otherwise.
+---@return string|nil err nil on success, error message otherwise.
+function _M.decrypt_jwt_with_jwks(jwt_token, jwks_endpoint, jwe_options)
+    if jwt_token == nil or jwks_endpoint == nil then
+        return nil, "params jwt_token and jwks_endpoint cannot be nil"
+    end
+
+    local unsafe_jwt_header, err = jwt.decode_header_unsafe(jwt_token)
+    if not unsafe_jwt_header then
+        return nil, "failed verifying jwt: " .. err
+    end
+
+    if unsafe_jwt_header.enc == nil then
+        return nil, "failed verifying jwt: parsed token is a jws"
+    end
+
+    local jwk_to_use, err = fetch_jwk_for_token(jwks_endpoint, unsafe_jwt_header)
+    if jwk_to_use == nil then
+        return nil, "failed verifying jwt: " .. err
+    end
+
+    if jwk_to_use.use ~= nil and jwk_to_use.use ~= "enc" then
+        return nil, "failed verifying jwt: matching jwk with kid '" .. jwk_to_use.kid .. "' cannot be used for decryption"
+    end
+
+    -- as per https://datatracker.ietf.org/doc/html/rfc7517#section-4.1, kty must be present and well-defined.
+    if jwk_to_use.kty == nil then
+        return nil, "failed verifying jwt: jwk kty field must be present"
+    elseif jwk_to_use.kty == "oct" then
+        -- as per https://www.rfc-editor.org/rfc/rfc7518#section-6.4, jwk contains a symmetric key.
+
+        if jwk_to_use.k == nil then
+            return nil, "failed verifying jwt: jwk k field must be present when kty is set to 'oct'"
+        end
+
+        -- as per https://www.rfc-editor.org/rfc/rfc7518#section-6.4.1, the symmetric key is base64url encoded.
+        local decoded_key = b64.decode_base64url(jwk_to_use.k)
+        if decoded_key == nil then
+            return nil, "failed verifying jwt: failed decoding base64url of k"
+        end
+
+        return jwt.decrypt(jwt_token, decoded_key, jwe_options)
+    elseif jwk_to_use.kty == "RSA" or jwk_to_use.kty == "EC" or jwk_to_use.kty == "OKP" then
+        -- jwk contains an asymmetric key.
+
+        -- openssl can verify a signature from a jwk directly. We need, however, to pass it as a json string.
+        -- FIXME: can we safely avoid decoding and then re-encoding the jwk for asymmetic keys?
+        jwk_to_use, err = cjson.encode(jwk_to_use)
+        if not jwk_to_use then
+            return nil, "failed verifying jwt: failed jsonify jwk: " .. err
+        end
+
+        return jwt.decrypt(jwt_token, jwk_to_use, jwe_options)
     else
         return nil, "failed verifying jwt: unknown or unsupported kty: " .. jwk_to_use.kty
     end

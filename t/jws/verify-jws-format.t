@@ -150,7 +150,7 @@ invalid jwt: failed decoding jwt payload from base64
     GET /t
 --- response_body
 true
-invalid jwt: failed decoding jwt signature from base64
+invalid jwt: failed decoding jwt signature from base64: invalid input
 --- error_code: 200
 --- no_error_log
 [error]

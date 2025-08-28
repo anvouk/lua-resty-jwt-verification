@@ -229,9 +229,9 @@ function _M.verify_jwt_with_jwks(jwt_token, jwks_endpoint, jws_options)
         end
 
         -- as per https://www.rfc-editor.org/rfc/rfc7518#section-6.4.1, the symmetric key is base64url encoded.
-        local decoded_key = b64.decode_base64url(jwk_to_use.k)
+        local decoded_key, err = b64.decode_base64url(jwk_to_use.k)
         if decoded_key == nil then
-            return nil, "failed verifying jwt: failed decoding base64url of k"
+            return nil, "failed verifying jwt: failed decoding base64url of k: " .. err
         end
 
         return jwt.verify(jwt_token, decoded_key, jws_options)
@@ -291,9 +291,9 @@ function _M.decrypt_jwt_with_jwks(jwt_token, jwks_endpoint, jwe_options)
         end
 
         -- as per https://www.rfc-editor.org/rfc/rfc7518#section-6.4.1, the symmetric key is base64url encoded.
-        local decoded_key = b64.decode_base64url(jwk_to_use.k)
+        local decoded_key, err = b64.decode_base64url(jwk_to_use.k)
         if decoded_key == nil then
-            return nil, "failed verifying jwt: failed decoding base64url of k"
+            return nil, "failed verifying jwt: failed decoding base64url of k: " .. err
         end
 
         return jwt.decrypt(jwt_token, decoded_key, jwe_options)

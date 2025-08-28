@@ -208,26 +208,14 @@ local decrypt_default_options = {
     timestamp_skew_seconds = 1,
 }
 
----Decode an encoded string in base64.
----@param base64_str string base64 encoded string.
----@return string|nil #Parsed string on success.
----@return string|nil err nil on success, error message otherwise.
-local function decode_base64_segment_to_string(base64_str)
-    local decoded_header = b64.decode_base64url(base64_str)
-    if decoded_header == nil then
-        return nil, "failed decoding base64 string: " .. base64_str
-    end
-    return decoded_header
-end
-
 ---Decode a json encoded in base64 and return it as lua table.
 ---@param base64_str string base64 encoded json string.
 ---@return table|nil #Parsed content on success.
 ---@return string|nil err nil on success, error message otherwise.
 local function decode_base64_segment_to_table(base64_str)
-    local decoded_string, err = decode_base64_segment_to_string(base64_str)
+    local decoded_string, err = b64.decode_base64url(base64_str)
     if decoded_string == nil then
-        return nil, err
+        return nil, "failed decoding base64 string: " .. err
     end
     return cjson.decode(decoded_string)
 end
@@ -507,9 +495,9 @@ function _M.verify(jwt_token, secret, options)
     if jwt_payload == nil then
         return nil, "invalid jwt: failed decoding jwt payload from base64"
     end
-    local jwt_signature = decode_base64_segment_to_string(jwt_sections[3])
+    local jwt_signature, err = b64.decode_base64url(jwt_sections[3])
     if jwt_signature == nil then
-        return nil, "invalid jwt: failed decoding jwt signature from base64"
+        return nil, "invalid jwt: failed decoding jwt signature from base64: " .. err
     end
 
     --- jwe sanity checks ---
@@ -673,20 +661,21 @@ local function derive_ecdhes(epk, alg, cek_len, secret_key)
     if epk.kty ~= 'EC' and epk.kty ~= 'OKP' then
         return nil, "ECDH-ES alg must use either EC or OKP keys, but got: " .. epk.kty
     end
+    local err = nil
 
     local apu = ""
     if type(epk.apu) == "string" then
-        apu = b64.decode_base64url(epk.apu)
+        apu, err = b64.decode_base64url(epk.apu)
         if apu == nil then
-            return nil, "failed base64url decoding epk.apu field"
+            return nil, "failed base64url decoding epk.apu field: " .. err
         end
     end
 
     local apv = ""
     if type(epk.apv) == "string" then
-        apv = b64.decode_base64url(epk.apv)
+        apv, err = b64.decode_base64url(epk.apv)
         if apv == nil then
-            return nil, "failed base64url decoding epk.apv field"
+            return nil, "failed base64url decoding epk.apv field: " .. err
         end
     end
 
@@ -920,21 +909,21 @@ function _M.decrypt(jwt_token, secret, options)
     if jwt_header == nil then
         return nil, "invalid jwt: failed decoding jwt header from base64"
     end
-    local jwt_encrypted_key = decode_base64_segment_to_string(jwt_sections[2])
+    local jwt_encrypted_key, err = b64.decode_base64url(jwt_sections[2])
     if jwt_encrypted_key == nil then
-        return nil, "invalid jwt: failed decoding jwt encrypted key from base64"
+        return nil, "invalid jwt: failed decoding jwt encrypted key from base64: " .. err
     end
-    local jwt_iv = decode_base64_segment_to_string(jwt_sections[3])
+    local jwt_iv, err = b64.decode_base64url(jwt_sections[3])
     if jwt_iv == nil then
-        return nil, "invalid jwt: failed decoding jwt iv from base64"
+        return nil, "invalid jwt: failed decoding jwt iv from base64: " .. err
     end
-    local jwt_ciphertext = decode_base64_segment_to_string(jwt_sections[4])
+    local jwt_ciphertext, err = b64.decode_base64url(jwt_sections[4])
     if jwt_ciphertext == nil then
-        return nil, "invalid jwt: failed decoding jwt ciphertext from base64"
+        return nil, "invalid jwt: failed decoding jwt ciphertext from base64: " .. err
     end
-    local jwt_auth_tag = decode_base64_segment_to_string(jwt_sections[5])
+    local jwt_auth_tag, err = b64.decode_base64url(jwt_sections[5])
     if jwt_auth_tag == nil then
-        return nil, "invalid jwt: failed decoding jwt authentication tag from base64"
+        return nil, "invalid jwt: failed decoding jwt authentication tag from base64: " .. err
     end
 
     --- jwe sanity checks ---

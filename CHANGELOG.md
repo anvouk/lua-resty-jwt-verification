@@ -1,5 +1,25 @@
 # JWT verification for openresty
 
+## v0.5.0 - 2025/09/02
+
+### New features
+
+- Added support for `ES256K` jws alg
+- Added support for `RSA-OAEP` jwe alg
+- Added support for `RSA-OAEP-256` jwe alg
+- Added support for `RSA-OAEP-384` jwe alg
+- Added support for `RSA-OAEP-512` jwe alg
+- Added new method `jwks.decrypt_jwt_with_jwks` for JWE decryption with JWKS
+
+### Improvements
+
+- Minor performance optimizations and cleanups
+- Pinned `lua-resty-openssl>=1.6.2` since earlier versions do not support loading JWK keys for the `secp256k1` curve
+
+### Fixes
+
+- Fixed conversion to big-endian for large numbers.
+
 ## v0.4.0 - 2025/08/25
 
 ### New features
@@ -21,7 +41,7 @@
 
 ### Fixes
 
-- Fix potential concurrency problem with `ngx.time()` being stored as global variable.
+- Fixed potential concurrency problem with `ngx.time()` being stored as global variable.
 
 ## v0.3.1 - 2025/08/16
 

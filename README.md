@@ -134,7 +134,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |  PS512  | :white_check_mark: |             Optional             |               |
 |  none   |        :x:         |             Optional             |               |
 |  EdDSA  |        :x:         |            Deprecated            |               |
-| ES256K  |        :x:         |             Optional             |               |
+| ES256K  | :white_check_mark: |             Optional             |               |
 | Ed25519 | :white_check_mark: |             Optional             | *OpenSSL 3.0+ |
 |  Ed448  | :white_check_mark: |             Optional             |               |
 
@@ -256,7 +256,7 @@ local verify_default_options = {
         ["RS256"]="RS256", ["RS384"]="RS384", ["RS512"]="RS512",
         ["ES256"]="ES256", ["ES384"]="ES384", ["ES512"]="ES512",
         ["PS256"]="PS256", ["PS384"]="PS384", ["PS512"]="PS512",
-        ["Ed25519"]="Ed25519", ["Ed448"]="Ed448",
+        ["ES256K"]="ES256K", ["Ed25519"]="Ed25519", ["Ed448"]="Ed448",
     },
     typ = nil,
     issuer = nil,

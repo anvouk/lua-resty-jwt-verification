@@ -9,7 +9,7 @@ local cache_jwks = ngx.shared.resty_jwt_verification_cache_jwks
 ---This would also have the advantage of sharing the same cache amongst multiple openresty instances.
 ---Note: remember to define the shared dict `lua_shared_dict resty_jwt_verification_cache_jwks 10m;` at openresty startup.
 ---Items are shared among all the nginx instance workers.
-local _M = { _VERSION = "0.4.0" }
+local _M = { _VERSION = "0.5.0" }
 
 ---Get cached entry string for key.
 ---@nodiscard

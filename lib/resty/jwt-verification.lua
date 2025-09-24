@@ -13,7 +13,7 @@ local _M = { _VERSION = "0.5.0" }
 
 ---@alias JwtHeaderJweEpk { x: string, y: string|nil, crv: string, kty: string, apu: string|nil, apv: string|nil }
 ---@alias JwtHeader { alg: string, enc: string|nil, crit: string|table|nil, cty: string|nil, epk: JwtHeaderJweEpk|nil }
----@alias JwtResult { header: JwtHeader, payload: table }
+---@alias JwtResult { header: JwtHeader, payload: table|string }
 
 ---@alias JwtShaMdAlg "sha256"|"sha384"|"sha512" supported sha types.
 ---@class (exact) JwtMdAlgTable
@@ -179,6 +179,13 @@ local verify_default_options = {
 ---nil, will default to calling `ngx.time()` on every JWT to verify.
 ---@field timestamp_skew_seconds integer Allows a margin in seconds in which the JWT can still be successfully
 ---verified after it already expired. Set to 0 to disable.
+---@field allow_nested_jwt boolean|nil If true allows validation of jwt-in-jwt (aka nested jwts). The reason why this flag
+---exists is that the claims to validate are inside the innermost token and WILL NOT be checked automatically by this lib.
+---It's up to the end-user to unroll the nested jwts and validate each one individually. The default
+---value is false since, in most cases, nobody uses nested jwts and allowing tokens to skip claims validation when
+---nested is not obvious and can thus weaken security. When set to true, the returned `payload` field will be a string
+---instead of a table and contain the nested token in its standard base64 concatenated encoding. Also note that a nested
+---jwt MUST contain the `cty` header key set to `JWT` to be recognized as such.
 local decrypt_default_options = {
     valid_encryption_alg_algorithms = {
         ["RSA-OAEP"]="RSA-OAEP",
@@ -207,6 +214,7 @@ local decrypt_default_options = {
     ignore_expiration = false,
     current_unix_timestamp = nil,
     timestamp_skew_seconds = 1,
+    allow_nested_jwt = false,
 }
 
 ---Decode a json encoded in base64 and return it as lua table.
@@ -467,8 +475,8 @@ function _M.verify(jwt_token, secret, options)
 
         -- ensure sensible configuration
         if options.audiences ~= nil then
-            if table_isempty(options.audiences) then
-                return nil, "invalid configuration: parameter options.audiences must contain at least a string"
+            if type(options.audiences) ~= "table" or table_isempty(options.audiences) then
+                return nil, "invalid configuration: parameter options.audiences must be an array containing at least a string"
             end
             if not table_isarray(options.audiences) then
                 return nil, "invalid configuration: parameter options.audiences must be an array"
@@ -597,10 +605,9 @@ local function rsaoaep_decrypt(message, private_key_str, oaep_hash)
     if not pk:is_private() then
         return nil, "RSA OAEP decryption requires a private key, but got a public one"
     end
-    -- TODO: uncomment when updating resty-openssl to >= 1.6.0
-    --if pk:get_size() < 256 then
-    --    return nil, "RSA OAEP decryption requires modulus of at least 2048 bits but got: " .. (pk:get_size() * 8)
-    --end
+    if pk:get_size() < 256 then
+        return nil, "RSA OAEP decryption requires modulus of at least 2048 bits but got: " .. (pk:get_size() * 8)
+    end
 
     return pk:decrypt(message, pkey.PADDINGS.RSA_PKCS1_OAEP_PADDING, { oaep_md = oaep_hash })
 end
@@ -876,11 +883,12 @@ function _M.decrypt(jwt_token, secret, options)
         if options.ignore_expiration == nil then options.ignore_expiration = decrypt_default_options.ignore_expiration end
         if options.current_unix_timestamp == nil then options.current_unix_timestamp = ngx.time() end
         if options.timestamp_skew_seconds == nil then options.timestamp_skew_seconds = decrypt_default_options.timestamp_skew_seconds end
+        if options.allow_nested_jwt == nil then options.allow_nested_jwt = decrypt_default_options.allow_nested_jwt end
 
         -- ensure sensible configuration
         if options.audiences ~= nil then
-            if table_isempty(options.audiences) then
-                return nil, "invalid configuration: parameter options.audiences must contain at least a string"
+            if type(options.audiences) ~= "table" or table_isempty(options.audiences) then
+                return nil, "invalid configuration: parameter options.audiences must be an array containing at least a string"
             end
             if not table_isarray(options.audiences) then
                 return nil, "invalid configuration: parameter options.audiences must be an array"
@@ -1025,15 +1033,23 @@ function _M.decrypt(jwt_token, secret, options)
 
     -- jwt verify claims --
 
-    ---@type table, string|nil
-    decrypted_payload, err = cjson.decode(decrypted_payload);
-    if decrypted_payload == nil then
-        return nil, "invalid jwt: failed reading decrypted payload: " .. err
-    end
+    if jwt_header.cty == "JWT" then
+        if not options.allow_nested_jwt then
+            return nil, "invalid jwt: nested jwt decryption is disabled"
+        end
+        -- nested jwt have a string as a payload.
+        -- claims will not be validated since not strictly part of this jwt.
+    else
+        ---@type table, string|nil
+        decrypted_payload, err = cjson.decode(decrypted_payload);
+        if decrypted_payload == nil then
+            return nil, "invalid jwt: failed reading decrypted payload: " .. err
+        end
 
-    local verify_res, err = verify_claims(jwt_header, decrypted_payload, options)
-    if verify_res == nil then
-        return nil, err
+        local verify_res, err = verify_claims(jwt_header, decrypted_payload, options)
+        if verify_res == nil then
+            return nil, err
+        end
     end
 
     --- jwt is valid ---

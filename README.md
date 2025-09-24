@@ -61,7 +61,7 @@ luarocks install lua-resty-jwt-verification
 
 Fully working, but looking for more people to take it for a spin and provide feedback.
 
-The APIs should be stable, but I reserve the right to make breaking changes until this project reaches 1.0;
+API is stable and breaking changes will follow SEMVER. Will tag 1.0 relatively soon.
 
 ## Library non-goals
 
@@ -115,7 +115,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   x5t    |        :x:         |
 | x5t#S256 |        :x:         |
 |   typ    | :white_check_mark: |
-|   cty    |        :x:         |
+|   cty    | :white_check_mark: |
 |   crit   | :white_check_mark: |
 
 |   alg   |    Implemented     | JOSE Implementation Requirements | Requirements  |
@@ -245,8 +245,9 @@ The optional parameter `options` can be passed to configure the token validator.
 - `ignore_not_before` (bool): If true, the JWT claim `nbf` will be ignored.
 - `ignore_expiration` (bool): If true, the JWT claim `exp` will be ignored.
 - `current_unix_timestamp` (datetime | nil): the JWT `nbf` and `exp` claims will be validated against this timestamp. If null,
-will use the current datetime supplied by `ngx.time()`.
-- `timestamp_skew_seconds` (int):
+  will use the current datetime supplied by `ngx.time()`.
+- `timestamp_skew_seconds` (int): How many seconds of leeway can the library use to check token expiration against current
+  time. Useful when clocks are not always exactly synchronized. Setting this value too high may pose security issues.
 
 Default values for `options` fields:
 ```lua
@@ -331,7 +332,12 @@ The optional parameter `options` can be passed to configure the token validator.
 - `ignore_expiration` (bool): If true, the JWT claim `exp` will be ignored.
 - `current_unix_timestamp` (datetime | nil): the JWT `nbf` and `exp` claims will be validated against this timestamp. If null,
   will use the current datetime supplied by `ngx.time()`.
-- `timestamp_skew_seconds` (int):
+- `timestamp_skew_seconds` (int): How many seconds of leeway can the library use to check token expiration against current
+  time. Useful when clocks are not always exactly synchronized. Setting this value too high may pose security issues.
+- `allow_nested_jwt` (bool): Allows verification of jwts containing another jwt (aka nested jwts or jwt-in-jwt). This is opt-in
+  as default since the claims to validate are always inside the innermost jwt and WILL NOT be automatically validated. It's up
+  to you to recursively validate the inner jwts returned as a string in the `payload` field by this lib. A nested
+  jwt MUST contain the `cty` header key set to `JWT` to be recognized as such.
 
 Default values for `options` fields:
 ```lua
@@ -363,6 +369,7 @@ local decrypt_default_options = {
     ignore_expiration = false,
     current_unix_timestamp = nil,
     timestamp_skew_seconds = 1,
+    allow_nested_jwt = false,
 }
 ```
 
@@ -380,8 +387,19 @@ print(decoded_token.header.enc) -- A128CBC-HS256
 print(decoded_token.payload.foo) -- bar
 ```
 
-Minimal example with asymmetric keys:
-`TODO: not implemented`
+Minimal example with asymmetric keys in PEM format:
+```lua
+local jwt = require("resty.jwt-verification")
+
+local token = "eyJhbGciOiJFQ0RILUVTK0ExMjhLVyIsImVuYyI6IkEyNTZHQ00iLCJlcGsiOnsieCI6IkFJdkVhSzVKZGl6d1I5ZFMzRUN2Y0dKMGNHWXNFejdpYWJwRUp1bE0tWDAiLCJjcnYiOiJYMjU1MTkiLCJrdHkiOiJPS1AifX0.QFfmPVYjk1PoyhE7elaDgUdUGGeAECLo7jB4ghq_8MIRXV3VKO1yAA.XITF2apHB5roeUsx.08T0gALwkb6Wibr2Og.IJoh3U_tspnMx_mWelRT5g"
+local decoded_token, err = jwt.decrypt(token, "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VuBCIEIMCxXl/FEuh3pGo1Z++QRs2vudqkGd63mK0Js0f6y+55\n-----END PRIVATE KEY-----", nil)
+if not decoded_token then
+    return nil, "invalid jwt: " .. err
+end
+print(decoded_token.header.alg) -- ECDH-ES+A128KW
+print(decoded_token.header.enc) -- A256GCM
+print(decoded_token.payload.foo) -- bar
+```
 
 Examples with custom `options`:
 ```lua

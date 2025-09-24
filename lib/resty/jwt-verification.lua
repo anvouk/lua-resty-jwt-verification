@@ -9,7 +9,7 @@ local table_clone = require("table.clone")
 local binutils = require("resty.jwt-verification.binutils")
 local crypto = require("resty.jwt-verification.crypto")
 
-local _M = { _VERSION = "0.5.0" }
+local _M = { _VERSION = "0.6.0" }
 
 ---@alias JwtHeaderJweEpk { x: string, y: string|nil, crv: string, kty: string, apu: string|nil, apv: string|nil }
 ---@alias JwtHeader { alg: string, enc: string|nil, crit: string|table|nil, cty: string|nil, epk: JwtHeaderJweEpk|nil }

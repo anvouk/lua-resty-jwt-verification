@@ -141,7 +141,7 @@ jwt validation failed: claim 'aud' mismatch
     GET /t
 --- response_body
 true
-invalid configuration: parameter options.audiences must contain at least a string
+invalid configuration: parameter options.audiences must be an array containing at least a string
 --- error_code: 200
 --- no_error_log
 [error]

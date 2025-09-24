@@ -475,8 +475,8 @@ function _M.verify(jwt_token, secret, options)
 
         -- ensure sensible configuration
         if options.audiences ~= nil then
-            if table_isempty(options.audiences) then
-                return nil, "invalid configuration: parameter options.audiences must contain at least a string"
+            if type(options.audiences) ~= "table" or table_isempty(options.audiences) then
+                return nil, "invalid configuration: parameter options.audiences must be an array containing at least a string"
             end
             if not table_isarray(options.audiences) then
                 return nil, "invalid configuration: parameter options.audiences must be an array"
@@ -888,8 +888,8 @@ function _M.decrypt(jwt_token, secret, options)
 
         -- ensure sensible configuration
         if options.audiences ~= nil then
-            if table_isempty(options.audiences) then
-                return nil, "invalid configuration: parameter options.audiences must contain at least a string"
+            if type(options.audiences) ~= "table" or table_isempty(options.audiences) then
+                return nil, "invalid configuration: parameter options.audiences must be an array containing at least a string"
             end
             if not table_isarray(options.audiences) then
                 return nil, "invalid configuration: parameter options.audiences must be an array"

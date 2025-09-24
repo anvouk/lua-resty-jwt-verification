@@ -115,7 +115,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   x5t    |        :x:         |
 | x5t#S256 |        :x:         |
 |   typ    | :white_check_mark: |
-|   cty    |        :x:         |
+|   cty    | :white_check_mark: |
 |   crit   | :white_check_mark: |
 
 |   alg   |    Implemented     | JOSE Implementation Requirements | Requirements  |
@@ -245,8 +245,9 @@ The optional parameter `options` can be passed to configure the token validator.
 - `ignore_not_before` (bool): If true, the JWT claim `nbf` will be ignored.
 - `ignore_expiration` (bool): If true, the JWT claim `exp` will be ignored.
 - `current_unix_timestamp` (datetime | nil): the JWT `nbf` and `exp` claims will be validated against this timestamp. If null,
-will use the current datetime supplied by `ngx.time()`.
-- `timestamp_skew_seconds` (int):
+  will use the current datetime supplied by `ngx.time()`.
+- `timestamp_skew_seconds` (int): How many seconds of leeway can the library use to check token expiration against current
+  time. Useful when clocks are not always exactly synchronized. Setting this value too high may pose security issues.
 
 Default values for `options` fields:
 ```lua
@@ -331,7 +332,12 @@ The optional parameter `options` can be passed to configure the token validator.
 - `ignore_expiration` (bool): If true, the JWT claim `exp` will be ignored.
 - `current_unix_timestamp` (datetime | nil): the JWT `nbf` and `exp` claims will be validated against this timestamp. If null,
   will use the current datetime supplied by `ngx.time()`.
-- `timestamp_skew_seconds` (int):
+- `timestamp_skew_seconds` (int): How many seconds of leeway can the library use to check token expiration against current
+  time. Useful when clocks are not always exactly synchronized. Setting this value too high may pose security issues.
+- `allow_nested_jwt` (bool): Allows verification of jwts containing another jwt (aka nested jwts or jwt-in-jwt). This is opt-in
+  as default since the claims to validate are always inside the innermost jwt and WILL NOT be automatically validated. It's up
+  to you to recursively validate the inner jwts returned as a string in the `payload` field by this lib. A nested
+  jwt MUST contain the `cty` header key set to `JWT` to be recognized as such.
 
 Default values for `options` fields:
 ```lua
@@ -363,6 +369,7 @@ local decrypt_default_options = {
     ignore_expiration = false,
     current_unix_timestamp = nil,
     timestamp_skew_seconds = 1,
+    allow_nested_jwt = false,
 }
 ```
 

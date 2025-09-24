@@ -13,7 +13,7 @@ local _M = { _VERSION = "0.5.0" }
 
 ---@alias JwtHeaderJweEpk { x: string, y: string|nil, crv: string, kty: string, apu: string|nil, apv: string|nil }
 ---@alias JwtHeader { alg: string, enc: string|nil, crit: string|table|nil, cty: string|nil, epk: JwtHeaderJweEpk|nil }
----@alias JwtResult { header: JwtHeader, payload: table }
+---@alias JwtResult { header: JwtHeader, payload: table|string }
 
 ---@alias JwtShaMdAlg "sha256"|"sha384"|"sha512" supported sha types.
 ---@class (exact) JwtMdAlgTable
@@ -179,6 +179,13 @@ local verify_default_options = {
 ---nil, will default to calling `ngx.time()` on every JWT to verify.
 ---@field timestamp_skew_seconds integer Allows a margin in seconds in which the JWT can still be successfully
 ---verified after it already expired. Set to 0 to disable.
+---@field allow_nested_jwt boolean|nil If true allows validation of jwt-in-jwt (aka nested jwts). The reason why this flag
+---exists is that the claims to validate are inside the innermost token and WILL NOT be checked automatically by this lib.
+---It's up to the end-user to unroll the nested jwts and validate each one individually. The default
+---value is false since, in most cases, nobody uses nested jwts and allowing tokens to skip claims validation when
+---nested is not obvious and can thus weaken security. When set to true, the returned `payload` field will be a string
+---instead of a table and contain the nested token in its standard base64 concatenated encoding. Also note that a nested
+---jwt MUST contain the `cty` header key set to `JWT` to be recognized as such.
 local decrypt_default_options = {
     valid_encryption_alg_algorithms = {
         ["RSA-OAEP"]="RSA-OAEP",
@@ -207,6 +214,7 @@ local decrypt_default_options = {
     ignore_expiration = false,
     current_unix_timestamp = nil,
     timestamp_skew_seconds = 1,
+    allow_nested_jwt = false,
 }
 
 ---Decode a json encoded in base64 and return it as lua table.
@@ -876,6 +884,7 @@ function _M.decrypt(jwt_token, secret, options)
         if options.ignore_expiration == nil then options.ignore_expiration = decrypt_default_options.ignore_expiration end
         if options.current_unix_timestamp == nil then options.current_unix_timestamp = ngx.time() end
         if options.timestamp_skew_seconds == nil then options.timestamp_skew_seconds = decrypt_default_options.timestamp_skew_seconds end
+        if options.allow_nested_jwt == nil then options.allow_nested_jwt = decrypt_default_options.allow_nested_jwt end
 
         -- ensure sensible configuration
         if options.audiences ~= nil then
@@ -1025,15 +1034,23 @@ function _M.decrypt(jwt_token, secret, options)
 
     -- jwt verify claims --
 
-    ---@type table, string|nil
-    decrypted_payload, err = cjson.decode(decrypted_payload);
-    if decrypted_payload == nil then
-        return nil, "invalid jwt: failed reading decrypted payload: " .. err
-    end
+    if jwt_header.cty == "JWT" then
+        if not options.allow_nested_jwt then
+            return nil, "invalid jwt: nested jwt decryption is disabled"
+        end
+        -- nested jwt have a string as a payload.
+        -- claims will not be validated since not strictly part of this jwt.
+    else
+        ---@type table, string|nil
+        decrypted_payload, err = cjson.decode(decrypted_payload);
+        if decrypted_payload == nil then
+            return nil, "invalid jwt: failed reading decrypted payload: " .. err
+        end
 
-    local verify_res, err = verify_claims(jwt_header, decrypted_payload, options)
-    if verify_res == nil then
-        return nil, err
+        local verify_res, err = verify_claims(jwt_header, decrypted_payload, options)
+        if verify_res == nil then
+            return nil, err
+        end
     end
 
     --- jwt is valid ---

@@ -1,5 +1,18 @@
 # JWT verification for openresty
 
+## v0.6.0 - 2025/09/25
+
+### New features
+
+- Added support for nested jwts (jws-in-jwe).
+
+### Improvements
+
+- Minor security hardening for RSA-OAEP verification.
+- Improved `audiences` option error message for validation.
+
+### Fixes
+
 ## v0.5.0 - 2025/09/02
 
 ### New features

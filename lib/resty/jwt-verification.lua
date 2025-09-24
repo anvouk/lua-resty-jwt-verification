@@ -605,10 +605,9 @@ local function rsaoaep_decrypt(message, private_key_str, oaep_hash)
     if not pk:is_private() then
         return nil, "RSA OAEP decryption requires a private key, but got a public one"
     end
-    -- TODO: uncomment when updating resty-openssl to >= 1.6.0
-    --if pk:get_size() < 256 then
-    --    return nil, "RSA OAEP decryption requires modulus of at least 2048 bits but got: " .. (pk:get_size() * 8)
-    --end
+    if pk:get_size() < 256 then
+        return nil, "RSA OAEP decryption requires modulus of at least 2048 bits but got: " .. (pk:get_size() * 8)
+    end
 
     return pk:decrypt(message, pkey.PADDINGS.RSA_PKCS1_OAEP_PADDING, { oaep_md = oaep_hash })
 end

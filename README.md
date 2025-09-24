@@ -387,8 +387,19 @@ print(decoded_token.header.enc) -- A128CBC-HS256
 print(decoded_token.payload.foo) -- bar
 ```
 
-Minimal example with asymmetric keys:
-`TODO: not implemented`
+Minimal example with asymmetric keys in PEM format:
+```lua
+local jwt = require("resty.jwt-verification")
+
+local token = "eyJhbGciOiJFQ0RILUVTK0ExMjhLVyIsImVuYyI6IkEyNTZHQ00iLCJlcGsiOnsieCI6IkFJdkVhSzVKZGl6d1I5ZFMzRUN2Y0dKMGNHWXNFejdpYWJwRUp1bE0tWDAiLCJjcnYiOiJYMjU1MTkiLCJrdHkiOiJPS1AifX0.QFfmPVYjk1PoyhE7elaDgUdUGGeAECLo7jB4ghq_8MIRXV3VKO1yAA.XITF2apHB5roeUsx.08T0gALwkb6Wibr2Og.IJoh3U_tspnMx_mWelRT5g"
+local decoded_token, err = jwt.decrypt(token, "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VuBCIEIMCxXl/FEuh3pGo1Z++QRs2vudqkGd63mK0Js0f6y+55\n-----END PRIVATE KEY-----", nil)
+if not decoded_token then
+    return nil, "invalid jwt: " .. err
+end
+print(decoded_token.header.alg) -- ECDH-ES+A128KW
+print(decoded_token.header.enc) -- A256GCM
+print(decoded_token.payload.foo) -- bar
+```
 
 Examples with custom `options`:
 ```lua

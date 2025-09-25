@@ -101,6 +101,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 - JWT claims validation.
 - Automatic JWKS fetching and JWT validation.
   - optional caching strategies.
+- Nested JWTs (JWS in JWE)
 
 ### JWS Verification
 
@@ -115,7 +116,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   x5t    |        :x:         |
 | x5t#S256 |        :x:         |
 |   typ    | :white_check_mark: |
-|   cty    | :white_check_mark: |
+|   cty    |        :x:         |
 |   crit   | :white_check_mark: |
 
 |   alg   |    Implemented     | JOSE Implementation Requirements | Requirements  |
@@ -153,7 +154,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   x5t    |        :x:         |
 | x5t#S256 |        :x:         |
 |   typ    | :white_check_mark: |
-|   cty    |        :x:         |
+|   cty    | :white_check_mark: |
 |   crit   | :white_check_mark: |
 
 | kty |    Implemented     | JOSE Implementation Requirements |

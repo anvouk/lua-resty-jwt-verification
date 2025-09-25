@@ -3,6 +3,7 @@ local cjson = require("cjson.safe")
 local pkey = require("resty.openssl.pkey")
 local hmac = require("resty.openssl.hmac")
 local cipher = require("resty.openssl.cipher")
+local rand = require("resty.openssl.rand")
 local table_isempty = require("table.isempty")
 local table_isarray = require("table.isarray")
 local table_clone = require("table.clone")
@@ -994,10 +995,24 @@ function _M.decrypt(jwt_token, secret, options)
     else
         return nil, "unknown or unsupported jwt alg: " .. jwt_header.alg
     end
-    if cek == nil then
-        return nil, "invalid jwt: " .. err
-    elseif not cek then
-        return nil, "invalid jwt: failed decrypting cek"
+
+    ---@type string|nil
+    local cek_err = nil
+    if not cek then
+        if cek == nil then
+            cek_err = "invalid jwt: " .. err
+        else
+            cek_err = "invalid jwt: failed decrypting cek"
+        end
+
+        -- we generate a random cek and continue to mitigate against timing attacks.
+        -- see https://www.rfc-editor.org/rfc/rfc7516#section-11.5 for more info.
+        cek, err = rand.bytes(
+            (decrypt_alg_table[jwt_header.enc].enc_key_len + decrypt_alg_table[jwt_header.enc].mac_key_len) * 8
+        )
+        if not cek then
+            return nil, "invalid jwt and could not generate random cek: " .. err
+        end
     end
 
     ---@cast cek string
@@ -1024,7 +1039,10 @@ function _M.decrypt(jwt_token, secret, options)
     else
         return nil, "unknown or unsupported jwt enc: " .. jwt_header.enc
     end
-    if decrypted_payload == nil then
+    if cek_err ~= nil then
+        -- cek was already determined invalid; don't bother returning decryption error since will be useless.
+        return nil, cek_err
+    elseif decrypted_payload == nil then
         return nil, "invalid jwt: " .. err
     elseif not decrypted_payload then
         return nil, "invalid jwt: failed decrypting jwt payload"

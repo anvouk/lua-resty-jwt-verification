@@ -141,7 +141,7 @@ local crit_supported_claims_table = {
 ---@field current_unix_timestamp integer|nil Allows overriding the current date as a unix epoch timestamp if set. If
 ---nil, will default to calling `ngx.time()` on every JWT to verify.
 ---@field timestamp_skew_seconds integer Allows a margin in seconds in which the JWT can still be successfully
----verified after it already expired. Set to 0 to disable.
+---verified after it already expired or before nbf. Set to 0 to disable.
 local verify_default_options = {
     valid_signing_algorithms = {
         ["HS256"]="HS256", ["HS384"]="HS384", ["HS512"]="HS512",
@@ -178,7 +178,7 @@ local verify_default_options = {
 ---@field current_unix_timestamp integer|nil Allows overriding the current date as a unix epoch timestamp if set. If
 ---nil, will default to calling `ngx.time()` on every JWT to verify.
 ---@field timestamp_skew_seconds integer Allows a margin in seconds in which the JWT can still be successfully
----verified after it already expired. Set to 0 to disable.
+---verified after it already expired or before nbf. Set to 0 to disable.
 ---@field allow_nested_jwt boolean|nil If true allows validation of jwt-in-jwt (aka nested jwts). The reason why this flag
 ---exists is that the claims to validate are inside the innermost token and WILL NOT be checked automatically by this lib.
 ---It's up to the end-user to unroll the nested jwts and validate each one individually. The default
@@ -435,7 +435,7 @@ local function verify_claims(jwt_header, jwt_payload, options, current_unix_time
         if type(jwt_payload.nbf) ~= "number" then
             return nil, "invalid jwt: nbf claim must be a number"
         end
-        if jwt_payload.nbf > current_unix_timestamp then
+        if jwt_payload.nbf - options.timestamp_skew_seconds > current_unix_timestamp then
             return nil, "jwt validation failed: token is not yet valid (nbf claim)"
         end
     end

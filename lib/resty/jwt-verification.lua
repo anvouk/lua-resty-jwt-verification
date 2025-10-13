@@ -4,6 +4,7 @@ local pkey = require("resty.openssl.pkey")
 local hmac = require("resty.openssl.hmac")
 local cipher = require("resty.openssl.cipher")
 local rand = require("resty.openssl.rand")
+local openssl_crypto = require("resty.openssl.crypto")
 local table_isempty = require("table.isempty")
 local table_isarray = require("table.isarray")
 local binutils = require("resty.jwt-verification.binutils")
@@ -536,8 +537,7 @@ function _M.verify(jwt_token, secret, options)
             return nil, "failed signing jwt for validation: " .. err
         end
 
-        -- FIXME: find a way to do this comparison in constant time
-        if signature ~= jwt_signature then
+        if openssl_crypto.memcmp(signature, jwt_signature, #signature) ~= 0 then
             return nil, "invalid jwt: signature does not match"
         end
     elseif jwt_header.alg == "RS256" or jwt_header.alg == "RS384" or jwt_header.alg == "RS512" then
@@ -824,8 +824,7 @@ local function decrypt_content_cbc(enc_info, cek, ciphertext, iv, aead_aad, aead
     end
     local computed_tag = string.sub(computed_mac, 1, enc_info.mac_key_len)
 
-    -- FIXME: find a way to do this comparison in constant time
-    if computed_tag ~= aead_tag then
+    if openssl_crypto.memcmp(computed_tag, aead_tag, #computed_tag) ~= 0 then
         return false, "aead tag verification does not match"
         --return false, "aead tag verification does not match: '" .. computed_tag .. "' != '" .. aead_tag .. "' enc_key: " .. enc_key .. "' mac_key: " .. mac_key
     end

@@ -2,7 +2,7 @@
 
 JWT verification library for OpenResty.
 
-![OPM](https://img.shields.io/opm/v/anvouk/lua-resty-jwt-verification) ![LuaRocks](https://img.shields.io/luarocks/v/anvouk/lua-resty-jwt-verification)
+![OPM](https://img.shields.io/opm/v/anvouk/lua-resty-jwt-verification) ![LuaRocks](https://img.shields.io/luarocks/v/anvouk/lua-resty-jwt-verification) ![Tests](https://github.com/anvouk/lua-resty-jwt-verification/actions/workflows/tests.yml/badge.svg)
 
 ## Table of Contents
 

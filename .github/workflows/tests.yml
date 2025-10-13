@@ -1,0 +1,118 @@
+name: Run tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # keep the openssl version the same bundled by official openresty releases.
+          - openrestyVersion: 1.27.1.1
+            opensslVersion: 3.0.15
+          - openrestyVersion: 1.27.1.2
+            opensslVersion: 3.4.1
+
+    steps:
+      - uses: actions/checkout@master
+
+      - name: ensure openssl and openresty directories cannot be restored
+        run: |
+          sudo mkdir -p /usr/local/openresty
+          sudo chown -R "$(id -u)":"$(id -g)" /usr/local/openresty
+          sudo mkdir -p /usr/local/openssl
+          sudo chown -R "$(id -u)":"$(id -g)" /usr/local/openssl
+
+      - name: restore openresty with openssl cache
+        uses: actions/cache/restore@v4
+        id: cache-openresty-restore
+        with:
+          path: |
+            /usr/local/openresty
+            /usr/local/openssl
+          key: ${{ runner.os }}-openssl-${{ matrix.opensslVersion }}-openresty-${{ matrix.openrestyVersion }}
+
+      - name: install openssl
+        if: steps.cache-openresty-restore.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget tar build-essential checkinstall zlib1g-dev
+          wget --progress=bar:force:noscroll https://github.com/openssl/openssl/releases/download/openssl-${{ matrix.opensslVersion }}/openssl-${{ matrix.opensslVersion }}.tar.gz
+          tar -xf openssl-${{ matrix.opensslVersion }}.tar.gz -C /tmp
+          cd /tmp/openssl-${{ matrix.opensslVersion }}
+          ./config --prefix=/usr/local/openssl shared zlib -d -DPURIFY -Wl,-rpath,/usr/local/openssl/lib64
+          make -j$(nproc)
+          sudo make install_sw
+          cd -
+          rm -rdf ./openssl-${{ matrix.opensslVersion }}.tar.gz
+
+      - name: install openresty
+        if: steps.cache-openresty-restore.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget tar build-essential pkg-config libpcre3 libpcre3-dev
+          wget --progress=bar:force:noscroll https://openresty.org/download/openresty-${{ matrix.openrestyVersion }}.tar.gz
+          tar -xf openresty-${{ matrix.openrestyVersion }}.tar.gz
+          cd openresty-${{ matrix.openrestyVersion }}
+          export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/openssl/lib64"
+          export OPENSSL_CONF=/usr/local/openssl/openssl.cnf
+          echo "/usr/local/openssl/lib64" | sudo tee /etc/ld.so.conf.d/openssl.conf
+          sudo ldconfig
+          ./configure -j2 \
+            --with-cc-opt="-I/usr/local/openssl/include" \
+            --with-ld-opt="-L/usr/local/openssl/lib64 -Wl,-rpath,/usr/local/openssl/lib64" \
+            --with-pcre-jit --with-http_ssl_module --with-debug
+          make -j$(nproc)
+          sudo make install
+          cd ..
+          rm -rdf ./openresty-${{ matrix.openrestyVersion }}.tar.gz ./openresty-${{ matrix.openrestyVersion }}
+
+      - name: save openresty with openssl cache
+        if: always() && steps.cache-openresty-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        id: cache-openresty-save
+        with:
+          path: |
+            /usr/local/openresty
+            /usr/local/openssl
+          key: ${{ runner.os }}-openssl-${{ matrix.opensslVersion }}-openresty-${{ matrix.openrestyVersion }}
+
+      - name: install openresty test suite
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cpanminus
+          sudo cpanm install -n Test::Nginx Test::Nginx::Socket Test::Nginx::Socket::Lua
+
+      - name: set paths
+        run: |
+          echo "/usr/local/openssl/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/openresty/bin" >> "$GITHUB_PATH"
+
+      - name: install dependencies
+        run: |
+          sudo chown -R "$(id -u)":"$(id -g)" /usr/local/openresty
+          opm install fffonion/lua-resty-openssl=1.7.0 ledgetech/lua-resty-http=0.17.1
+
+      - name: run tests
+        run: |
+          export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/local/openssl/lib64"
+          export OPENSSL_CONF=/usr/local/openssl/openssl.cnf
+          echo "/usr/local/openssl/lib64" | sudo tee /etc/ld.so.conf.d/openssl.conf
+          sudo ldconfig
+          which openssl
+          openssl version -a
+          openssl list -providers
+          ldd /usr/local/openresty/bin/openresty
+          which openresty
+          openresty -V
+          export PATH="/usr/local/openresty/nginx/sbin:$PATH"
+          which prove
+          prove -V
+          prove -r t

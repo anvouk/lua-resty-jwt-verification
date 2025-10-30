@@ -1,5 +1,16 @@
 # JWT verification for openresty
 
+## v0.7.0 - 2025/10/25
+
+### New features
+
+### Improvements
+
+- Security hardening.
+- Added CI tests against multiple openresty versions.
+
+### Fixes
+
 ## v0.6.0 - 2025/09/25
 
 ### New features

@@ -58,10 +58,10 @@ nil
     }
 --- request
     GET /t
---- response_body
+--- response_body_like
 nil
 nil
-invalid jwt: pkey:asymmetric_routine EVP_PKEY_decrypt: code: 0 error:30000E8:digital envelope routines:EVP_PKEY_decrypt:provider asym cipher failure:crypto/evp/asymcipher.c:314:
+invalid jwt: pkey:asymmetric_routine EVP_PKEY_decrypt: code: 0 error:2000079:rsa routines:RSA_padding_check_PKCS1_OAEP_mgf1:oaep decoding.+
 --- error_code: 200
 --- no_error_log
 [error]

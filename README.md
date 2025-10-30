@@ -2,7 +2,7 @@
 
 JWT verification library for OpenResty.
 
-![OPM](https://img.shields.io/opm/v/anvouk/lua-resty-jwt-verification) ![LuaRocks](https://img.shields.io/luarocks/v/anvouk/lua-resty-jwt-verification)
+![OPM](https://img.shields.io/opm/v/anvouk/lua-resty-jwt-verification) ![LuaRocks](https://img.shields.io/luarocks/v/anvouk/lua-resty-jwt-verification) ![Tests](https://github.com/anvouk/lua-resty-jwt-verification/actions/workflows/tests.yml/badge.svg)
 
 ## Table of Contents
 
@@ -101,6 +101,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 - JWT claims validation.
 - Automatic JWKS fetching and JWT validation.
   - optional caching strategies.
+- Nested JWTs (JWS in JWE)
 
 ### JWS Verification
 
@@ -115,7 +116,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   x5t    |        :x:         |
 | x5t#S256 |        :x:         |
 |   typ    | :white_check_mark: |
-|   cty    | :white_check_mark: |
+|   cty    |        :x:         |
 |   crit   | :white_check_mark: |
 
 |   alg   |    Implemented     | JOSE Implementation Requirements | Requirements  |
@@ -153,7 +154,7 @@ The file `ngx.d.lua` in the project's root provides some `ngx` stubs.
 |   x5t    |        :x:         |
 | x5t#S256 |        :x:         |
 |   typ    | :white_check_mark: |
-|   cty    |        :x:         |
+|   cty    | :white_check_mark: |
 |   crit   | :white_check_mark: |
 
 | kty |    Implemented     | JOSE Implementation Requirements |

@@ -3,9 +3,10 @@ local cjson = require("cjson.safe")
 local pkey = require("resty.openssl.pkey")
 local hmac = require("resty.openssl.hmac")
 local cipher = require("resty.openssl.cipher")
+local rand = require("resty.openssl.rand")
+local openssl_crypto = require("resty.openssl.crypto")
 local table_isempty = require("table.isempty")
 local table_isarray = require("table.isarray")
-local table_clone = require("table.clone")
 local binutils = require("resty.jwt-verification.binutils")
 local crypto = require("resty.jwt-verification.crypto")
 
@@ -141,7 +142,7 @@ local crit_supported_claims_table = {
 ---@field current_unix_timestamp integer|nil Allows overriding the current date as a unix epoch timestamp if set. If
 ---nil, will default to calling `ngx.time()` on every JWT to verify.
 ---@field timestamp_skew_seconds integer Allows a margin in seconds in which the JWT can still be successfully
----verified after it already expired. Set to 0 to disable.
+---verified after it already expired or before nbf. Set to 0 to disable.
 local verify_default_options = {
     valid_signing_algorithms = {
         ["HS256"]="HS256", ["HS384"]="HS384", ["HS512"]="HS512",
@@ -178,7 +179,7 @@ local verify_default_options = {
 ---@field current_unix_timestamp integer|nil Allows overriding the current date as a unix epoch timestamp if set. If
 ---nil, will default to calling `ngx.time()` on every JWT to verify.
 ---@field timestamp_skew_seconds integer Allows a margin in seconds in which the JWT can still be successfully
----verified after it already expired. Set to 0 to disable.
+---verified after it already expired or before nbf. Set to 0 to disable.
 ---@field allow_nested_jwt boolean|nil If true allows validation of jwt-in-jwt (aka nested jwts). The reason why this flag
 ---exists is that the claims to validate are inside the innermost token and WILL NOT be checked automatically by this lib.
 ---It's up to the end-user to unroll the nested jwts and validate each one individually. The default
@@ -390,9 +391,10 @@ end
 ---@param jwt_header table Verified jwt header as table.
 ---@param jwt_payload table Verified or decrypted jwt payload as table (or string if jwe is not containing a jwt).
 ---@param options table User defined or default jwt validation options to check.
+---@param current_unix_timestamp integer Current timestamp as unix epoch time in seconds.
 ---@return boolean|nil #true if jwt claims verification succeeded
 ---@return string|nil err nil on success, error message otherwise.
-local function verify_claims(jwt_header, jwt_payload, options)
+local function verify_claims(jwt_header, jwt_payload, options, current_unix_timestamp)
     if options.typ ~= nil then
         if jwt_header.typ ~= options.typ then
             return nil, "jwt validation failed: header claim 'typ' mismatch: " .. (jwt_header.typ or "nil")
@@ -434,7 +436,7 @@ local function verify_claims(jwt_header, jwt_payload, options)
         if type(jwt_payload.nbf) ~= "number" then
             return nil, "invalid jwt: nbf claim must be a number"
         end
-        if jwt_payload.nbf > options.current_unix_timestamp then
+        if jwt_payload.nbf - options.timestamp_skew_seconds > current_unix_timestamp then
             return nil, "jwt validation failed: token is not yet valid (nbf claim)"
         end
     end
@@ -442,7 +444,7 @@ local function verify_claims(jwt_header, jwt_payload, options)
         if type(jwt_payload.exp) ~= "number" then
             return nil, "invalid jwt: exp claim must be a number"
         end
-        if options.current_unix_timestamp >= jwt_payload.exp + options.timestamp_skew_seconds then
+        if current_unix_timestamp >= jwt_payload.exp + options.timestamp_skew_seconds then
             return nil, "jwt validation failed: token has expired (exp claim)"
         end
     end
@@ -461,16 +463,16 @@ function _M.verify(jwt_token, secret, options)
         return nil, "invalid configuration: both jwt token and a secret are required"
     end
 
+    local current_unix_timestamp = ngx.time()
     if options == nil then
-        options = table_clone(verify_default_options)
-        options.current_unix_timestamp = ngx.time()
+        options = verify_default_options
     elseif type(options) ~= "table" then
         return nil, "invalid configuration: parameter options is not a valid table"
     else
         if options.valid_signing_algorithms == nil then options.valid_signing_algorithms = verify_default_options.valid_signing_algorithms end
         if options.ignore_not_before == nil then options.ignore_not_before = verify_default_options.ignore_not_before end
         if options.ignore_expiration == nil then options.ignore_expiration = verify_default_options.ignore_expiration end
-        if options.current_unix_timestamp == nil then options.current_unix_timestamp = ngx.time() end
+        if options.current_unix_timestamp ~= nil then current_unix_timestamp = options.current_unix_timestamp end
         if options.timestamp_skew_seconds == nil then options.timestamp_skew_seconds = verify_default_options.timestamp_skew_seconds end
 
         -- ensure sensible configuration
@@ -535,8 +537,7 @@ function _M.verify(jwt_token, secret, options)
             return nil, "failed signing jwt for validation: " .. err
         end
 
-        -- FIXME: find a way to do this comparison in constant time
-        if signature ~= jwt_signature then
+        if openssl_crypto.memcmp(signature, jwt_signature, #signature) ~= 0 then
             return nil, "invalid jwt: signature does not match"
         end
     elseif jwt_header.alg == "RS256" or jwt_header.alg == "RS384" or jwt_header.alg == "RS512" then
@@ -575,7 +576,7 @@ function _M.verify(jwt_token, secret, options)
 
     -- jwt verify claims --
 
-    local verify_res, err = verify_claims(jwt_header, jwt_payload, options)
+    local verify_res, err = verify_claims(jwt_header, jwt_payload, options, current_unix_timestamp)
     if verify_res == nil then
         return nil, err
     end
@@ -823,8 +824,7 @@ local function decrypt_content_cbc(enc_info, cek, ciphertext, iv, aead_aad, aead
     end
     local computed_tag = string.sub(computed_mac, 1, enc_info.mac_key_len)
 
-    -- FIXME: find a way to do this comparison in constant time
-    if computed_tag ~= aead_tag then
+    if openssl_crypto.memcmp(computed_tag, aead_tag, #computed_tag) ~= 0 then
         return false, "aead tag verification does not match"
         --return false, "aead tag verification does not match: '" .. computed_tag .. "' != '" .. aead_tag .. "' enc_key: " .. enc_key .. "' mac_key: " .. mac_key
     end
@@ -871,9 +871,9 @@ function _M.decrypt(jwt_token, secret, options)
         return nil, "invalid configuration: both jwt token and a secret are required"
     end
 
+    local current_unix_timestamp = ngx.time()
     if options == nil then
-        options = table_clone(decrypt_default_options)
-        options.current_unix_timestamp = ngx.time()
+        options = decrypt_default_options
     elseif type(options) ~= "table" then
         return nil, "invalid configuration: parameter options is not a valid table"
     else
@@ -881,7 +881,7 @@ function _M.decrypt(jwt_token, secret, options)
         if options.valid_encryption_enc_algorithms == nil then options.valid_encryption_enc_algorithms = decrypt_default_options.valid_encryption_enc_algorithms end
         if options.ignore_not_before == nil then options.ignore_not_before = decrypt_default_options.ignore_not_before end
         if options.ignore_expiration == nil then options.ignore_expiration = decrypt_default_options.ignore_expiration end
-        if options.current_unix_timestamp == nil then options.current_unix_timestamp = ngx.time() end
+        if options.current_unix_timestamp ~= nil then current_unix_timestamp = options.current_unix_timestamp end
         if options.timestamp_skew_seconds == nil then options.timestamp_skew_seconds = decrypt_default_options.timestamp_skew_seconds end
         if options.allow_nested_jwt == nil then options.allow_nested_jwt = decrypt_default_options.allow_nested_jwt end
 
@@ -994,10 +994,24 @@ function _M.decrypt(jwt_token, secret, options)
     else
         return nil, "unknown or unsupported jwt alg: " .. jwt_header.alg
     end
-    if cek == nil then
-        return nil, "invalid jwt: " .. err
-    elseif not cek then
-        return nil, "invalid jwt: failed decrypting cek"
+
+    ---@type string|nil
+    local cek_err = nil
+    if not cek then
+        if cek == nil then
+            cek_err = "invalid jwt: " .. err
+        else
+            cek_err = "invalid jwt: failed decrypting cek"
+        end
+
+        -- we generate a random cek and continue to mitigate against timing attacks.
+        -- see https://www.rfc-editor.org/rfc/rfc7516#section-11.5 for more info.
+        cek, err = rand.bytes(
+            (decrypt_alg_table[jwt_header.enc].enc_key_len + decrypt_alg_table[jwt_header.enc].mac_key_len) * 8
+        )
+        if not cek then
+            return nil, "invalid jwt and could not generate random cek: " .. err
+        end
     end
 
     ---@cast cek string
@@ -1024,7 +1038,10 @@ function _M.decrypt(jwt_token, secret, options)
     else
         return nil, "unknown or unsupported jwt enc: " .. jwt_header.enc
     end
-    if decrypted_payload == nil then
+    if cek_err ~= nil then
+        -- cek was already determined invalid; don't bother returning decryption error since will be useless.
+        return nil, cek_err
+    elseif decrypted_payload == nil then
         return nil, "invalid jwt: " .. err
     elseif not decrypted_payload then
         return nil, "invalid jwt: failed decrypting jwt payload"
@@ -1046,7 +1063,7 @@ function _M.decrypt(jwt_token, secret, options)
             return nil, "invalid jwt: failed reading decrypted payload: " .. err
         end
 
-        local verify_res, err = verify_claims(jwt_header, decrypted_payload, options)
+        local verify_res, err = verify_claims(jwt_header, decrypted_payload, options, current_unix_timestamp)
         if verify_res == nil then
             return nil, err
         end

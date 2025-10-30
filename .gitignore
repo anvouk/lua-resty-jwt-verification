@@ -3,6 +3,7 @@
 t/servroot
 lua-resty-jwt-verification-*
 !lua-resty-jwt-verification-*.rockspec
+resty_modules
 
 *~
 .fuse_hidden*

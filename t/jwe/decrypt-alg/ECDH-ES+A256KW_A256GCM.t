@@ -45,7 +45,7 @@ nil
         content_by_lua_block {
             local jwt = require "resty.jwt-verification"
             local token = "eyJhbGciOiJFQ0RILUVTK0EyNTZLVyIsImVuYyI6IkEyNTZHQ00iLCJlcGsiOnsieCI6IkttZWdIWU9abTFXTkNXMVVycVowWG5EYlBzeDk1Q2UyNlV0VHdxRXY2WGsiLCJjcnYiOiJYMjU1MTkiLCJrdHkiOiJPS1AifX0.fkTmUeEFgVR-EjCmoB0KzSX-Jbq28qaaThEI5I5vVqgCQzb2i1ex_g.yKic2kIehLEe4z3i.JIHJKUd7NN8bJV4low.NooerGfeEqJlEI6d6xGd9g"
-            local decoded_token, err = jwt.decrypt(token, "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgnzYqsGtwcAEvibcN\n2z6hhSW4CXV5W9+QdhwIKI7wAyyhRANCAATm0uPgVVAtPSLaTb74SSH5iGiNkvPR\nwGxQfVPz2pRu6wZ5LrFEp0BwMGp3bcix3EUXm2ca5s5E/hi9M2rvpR6U\n-----END PRIVATE KEY-----", nil)
+            local decoded_token, err = jwt.decrypt(token, "-----BEGIN PRIVATE KEY-----\nAC4CAQAwBQYDK2VuBCIEIMCxXl/FEuh3pGo1Z++QRs2vudqkGd63mK0Js0f6y+55\n-----END PRIVATE KEY-----", nil)
             if decoded_token ~= nil then
                 ngx.say(decoded_token.header.alg .. "|" .. decoded_token.header.enc)
                 ngx.say(decoded_token.payload.foo)

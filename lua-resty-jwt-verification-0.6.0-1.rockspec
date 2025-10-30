@@ -21,7 +21,7 @@ description = {
 }
 dependencies = {
   'lua >= 5.1',
-  'lua-resty-openssl >= 1.6.2',
+  'lua-resty-openssl >= 1.7.0',
   'lua-resty-http >= 0.17.2'
 }
 build = {

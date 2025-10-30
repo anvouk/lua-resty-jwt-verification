@@ -51,7 +51,7 @@ Install with [OPM](https://opm.openresty.org/package/anvouk/lua-resty-jwt-verifi
 opm get anvouk/lua-resty-jwt-verification
 ```
 
-Or with [luarocks](https://github.com/anvouk/lua-resty-jwt-verification):
+Or with [luarocks](https://luarocks.org/modules/anvouk/lua-resty-jwt-verification):
 
 ```bash
 luarocks install lua-resty-jwt-verification

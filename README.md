@@ -45,13 +45,13 @@ This project does not provide JWT manipulation or creation features: you can onl
 
 ## Install
 
-Install with OPM (recommended):
+Install with [OPM](https://opm.openresty.org/package/anvouk/lua-resty-jwt-verification) (recommended):
 
 ```bash
 opm get anvouk/lua-resty-jwt-verification
 ```
 
-Or with luarocks:
+Or with [luarocks](https://github.com/anvouk/lua-resty-jwt-verification):
 
 ```bash
 luarocks install lua-resty-jwt-verification
@@ -59,7 +59,7 @@ luarocks install lua-resty-jwt-verification
 
 ## Status
 
-Fully working, but looking for more people to take it for a spin and provide feedback.
+Feature complete and fully working.
 
 API is stable and breaking changes will follow SEMVER. Will tag 1.0 relatively soon.
 

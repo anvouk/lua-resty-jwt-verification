@@ -150,7 +150,9 @@ end
 local function fetch_jwk_for_token(jwks_endpoint, jwt_header)
     local kid = jwt_header.kid
     if kid == nil then
-        -- FIXME: is this actually something worth implementing or just an RFC completeness thing?
+        -- Note: the RFC technically allows having JWKS without kids.
+        -- For now, not going to implement this since seems more of an edge case
+        -- rather than something recommended and widely used.
         return nil, "failed finding jwk: token does not have kid header and this lib does not support this case"
     end
 
@@ -169,7 +171,7 @@ local function fetch_jwk_for_token(jwks_endpoint, jwt_header)
     end
 
     -- find public jwk used to sign our token
-    -- FIXME: technically, the RFC allows having multiple JWK with the same 'kid' as long as the 'kty' is
+    -- Note: technically, the RFC allows having multiple JWK with the same 'kid' as long as the 'kty' is
     -- different between each duplicated entry. Since it's also not recommended by the RFC, I'm not going to implement
     -- it unless someone actually needs it. See https://www.rfc-editor.org/rfc/rfc7517#section-4.5
     local jwk_to_use

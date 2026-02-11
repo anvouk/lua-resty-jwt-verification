@@ -36,7 +36,7 @@ __DATA__
             end
             token = string.sub(token, space_pos + 1)
 
-            local decoded_token, err = jwt.verify(token, '{"kty":"RSA","n":"vXFhNyhFWuWtFSJqfOAwp42lLIn9kB9oaciiKgNAYZ8SYw5t9Fo-Zh7IciVijn-cVS2_aoBNg2HhfdYgfpQ_sb6jwbRqFMln2GmG-X2aJ2wXMJ_QfxrPFdO9L36bAEwkubUTYXwgMSm1KqWRN8xX-oBu-dbyzw7iUbrmw0ybzXKZLJvetCvmt0reU5TvdwoczOWFBSKeYnzBrC6hISD88TYDJ4tiw1EWVOupQGqgel0KjC7iwdIYi7PROn6_1MMnF48zlBbT_7_zORj84Z_yDnmxZu1MQ07kHqXDRYumSfCerg5Xw5vde7Tz8O0TWtaYV3HJXNa0VpN5OI3L4y7Phw","e":"AQAB","kid":"e05039b26b898436"}')
+            local decoded_token, err = jwt.verify(token, '{"kty":"EC","x":"448yOd9bsM8y9o13v6pVazTpkfegk358sk1lMp-LXyQ","y":"DYppBkeKg8QRODhGnu4td6kmWZjok_dsj9uiDUyE9mI","crv":"secp256k1","kid":"4d77e9ed78d63bc5"}')
             if not decoded_token then
                 ngx.exit(ngx.HTTP_UNAUTHORIZED)
                 return
@@ -46,7 +46,7 @@ __DATA__
 --- request
     GET /t
 --- more_headers
-Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6ImUwNTAzOWIyNmI4OTg0MzYifQ.eyJmb28iOiJiYXIiLCJpYXQiOjE3NzA4NDA3OTJ9.oGbafXuLqd5ZgNgY0is57qhKkEyQq0uXqnR73yBfI0qFFyK7UGBUFsYNN-MOp3wSDWKxTj579Fr0LUce-UiTV26LkRM4DFUzLJm2XzYh4aYqrOu7-tBj7DnKGAKYruLPFDAazp5up-kvBg31ZRyZIPvOlsDWq_Ob5K9Tg_EgTnrmFX0zcW-b4yTwjDYtJkXurEdJwZNcrKKQ7CW6ua8z1U0q7DIoVN56Dp4XO6K9Igviw6Ap4cB345kVz2cNzvLkgF8fcDfd9T3gSxLabH7yS5Xa1oqMiYOuz0TGvAvkfZEJPFbKVvNqmV2rGcoaLKv3q-_v5XQo07aFUcFN1jYd3Q
+Authorization: Bearer eyJhbGciOiJFUzI1NksiLCJraWQiOiI0ZDc3ZTllZDc4ZDYzYmM1In0.eyJmb28iOiJiYXIiLCJpYXQiOjE3NzA4NDA0MTV9.AcS-Ua4hjCqZOAvQdzLRM38uBR9pKTLy4KcuYEqc2PsBbZpynaHkXYjRW6jlemTDw5oGOEZs87L08CJBo0Dxsg
 --- response_body
 --- error_code: 200
 --- no_error_log

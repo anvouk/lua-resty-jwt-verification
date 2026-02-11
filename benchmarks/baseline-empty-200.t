@@ -22,6 +22,8 @@ __DATA__
     }
 --- request
     GET /t
+--- more_headers
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmb28iOiJiYXIiLCJpYXQiOjE3MTY2NTUwMTV9.NuEhIzUuufJgPZ8CmCPnD4Vrw7EnTyWD8bGtYCwuDZ0
 --- response_body
 --- error_code: 200
 --- no_error_log

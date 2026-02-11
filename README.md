@@ -675,7 +675,7 @@ I've created some pseudo-real world scenarios inside the `benchmarks` folder.
 
 ```bash
 # for more info about syntax: https://openresty.gitbooks.io/programming-openresty/content/testing/test-modes.html
-export TEST_NGINX_BENCHMARK='50000 10'
+export TEST_NGINX_BENCHMARK='100000 40'
 prove -r ./benchmarks
 ```
 

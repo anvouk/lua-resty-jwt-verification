@@ -59,9 +59,9 @@ luarocks install lua-resty-jwt-verification
 
 ## Status
 
-Feature complete and fully working.
+**Production ready and feature complete.**
 
-API is stable and breaking changes will follow SEMVER. Will tag 1.0 relatively soon.
+API is stable and breaking changes will follow SEMVER.
 
 ## Library non-goals
 
